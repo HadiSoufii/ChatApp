@@ -27,9 +27,10 @@ namespace ChatpApp.Server
         private Label _networkTitle;
         private Label _portLabel;
         private TextBox _port;
+        private Label _hostLabel;
+        private TextBox _host;
         private Label _hostInfoLabel;
         private Button _start;
-        private Button _stop;
         private Panel _usersCard;
         private Label _usersTitle;
         private Label _count;
@@ -72,9 +73,10 @@ namespace ChatpApp.Server
             this._networkTitle = new Label();
             this._portLabel = new Label();
             this._port = new TextBox();
+            this._hostLabel = new Label();
+            this._host = new TextBox();
             this._hostInfoLabel = new Label();
             this._start = new Button();
-            this._stop = new Button();
             this._usersCard = new Panel();
             this._usersTitle = new Label();
             this._count = new Label();
@@ -123,7 +125,7 @@ namespace ChatpApp.Server
             // تنظیمات پنجره اصلی مدیریت سرور
             this.AutoScaleDimensions = new SizeF(8F, 17F);
             this.AutoScaleMode = AutoScaleMode.Font;
-            this.BackColor = Color.FromArgb(10, 16, 29);
+            this.BackColor = Color.FromArgb(7, 17, 17);
             this.ClientSize = new Size(1280, 800);
             this.Controls.Add(this._rootPanel);
             this.Font = new Font("Segoe UI", 9.5F);
@@ -136,7 +138,7 @@ namespace ChatpApp.Server
             // قاب اصلی دارای سربرگ ثابت و فضای کاری منعطف است.
             this._rootPanel.Dock = DockStyle.Fill;
             this._rootPanel.Padding = new Padding(16);
-            this._rootPanel.BackColor = Color.FromArgb(10, 16, 29);
+            this._rootPanel.BackColor = Color.FromArgb(7, 17, 17);
             this._rootPanel.Controls.Add(this._rootLayout);
             this._rootLayout.Dock = DockStyle.Fill;
             this._rootLayout.ColumnCount = 1;
@@ -147,7 +149,7 @@ namespace ChatpApp.Server
             this._rootLayout.Name = "_rootLayout";
             // سربرگ پنل مدیریت
             this._headerPanel.Dock = DockStyle.Fill;
-            this._headerPanel.BackColor = Color.FromArgb(20, 30, 48);
+            this._headerPanel.BackColor = Color.FromArgb(13, 31, 30);
             this._headerPanel.BorderStyle = BorderStyle.FixedSingle;
             this._headerPanel.Padding = new Padding(18, 10, 18, 10);
             this._headerPanel.Name = "_headerPanel";
@@ -156,7 +158,7 @@ namespace ChatpApp.Server
             this._headerPanel.Controls.Add(this._titleLabel);
             this._titleLabel.AutoSize = true;
             this._titleLabel.Font = new Font("Segoe UI", 19F, FontStyle.Bold);
-            this._titleLabel.ForeColor = Color.FromArgb(147, 197, 253);
+            this._titleLabel.ForeColor = Color.FromArgb(110, 231, 183);
             this._titleLabel.Location = new Point(18, 7);
             this._titleLabel.Name = "_titleLabel";
             this._titleLabel.Text = "مرکز کنترل سرور  ✦";
@@ -170,7 +172,7 @@ namespace ChatpApp.Server
             this._theme.Size = new Size(126, 38);
             this._theme.FlatStyle = FlatStyle.Flat;
             this._theme.FlatAppearance.BorderSize = 0;
-            this._theme.BackColor = Color.FromArgb(37, 99, 235);
+            this._theme.BackColor = Color.FromArgb(5, 150, 105);
             this._theme.ForeColor = Color.White;
             this._theme.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             this._theme.Cursor = Cursors.Hand;
@@ -184,8 +186,8 @@ namespace ChatpApp.Server
             this._mainSplit.Orientation = Orientation.Vertical;
             // اندازه اولیه را قبل از تنظیم حداقل پنل‌ها تعیین می‌کنیم؛ در غیر این صورت EndInit کنترل هنوز عرض پیش‌فرض ۱۵۰ پیکسل را می‌بیند.
             this._mainSplit.Size = new Size(1240, 640);
-            this._mainSplit.SplitterDistance = 400;
-            this._mainSplit.Panel1MinSize = 350;
+            this._mainSplit.SplitterDistance = 440;
+            this._mainSplit.Panel1MinSize = 390;
             this._mainSplit.Panel2MinSize = 520;
             this._mainSplit.Panel1.Controls.Add(this._leftLayout);
             this._mainSplit.Panel2.Controls.Add(this._rightLayout);
@@ -196,20 +198,21 @@ namespace ChatpApp.Server
             this._leftLayout.RowCount = 3;
             this._leftLayout.Padding = new Padding(0, 10, 10, 0);
             this._leftLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            this._leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 174F));
+            this._leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 196F));
             this._leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             this._leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
             this._leftLayout.Name = "_leftLayout";
             // کارت تنظیمات راه‌اندازی شبکه
             this._networkCard.Dock = DockStyle.Fill;
-            this._networkCard.BackColor = Color.FromArgb(20, 30, 48);
+            this._networkCard.BackColor = Color.FromArgb(13, 31, 30);
             this._networkCard.BorderStyle = BorderStyle.FixedSingle;
             this._networkCard.Padding = new Padding(14);
             this._networkCard.Margin = new Padding(0, 0, 0, 10);
             this._networkCard.Name = "_networkCard";
-            this._networkCard.Controls.Add(this._stop);
             this._networkCard.Controls.Add(this._start);
             this._networkCard.Controls.Add(this._hostInfoLabel);
+            this._networkCard.Controls.Add(this._host);
+            this._networkCard.Controls.Add(this._hostLabel);
             this._networkCard.Controls.Add(this._port);
             this._networkCard.Controls.Add(this._portLabel);
             this._networkCard.Controls.Add(this._networkTitle);
@@ -222,48 +225,51 @@ namespace ChatpApp.Server
             this._portLabel.AutoSize = true;
             this._portLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             this._portLabel.ForeColor = Color.FromArgb(203, 213, 225);
-            this._portLabel.Location = new Point(14, 52);
+            this._portLabel.Location = new Point(14, 48);
             this._portLabel.Name = "_portLabel";
             this._portLabel.Text = "پورت ارتباطی";
-            this._port.Location = new Point(14, 76);
-            this._port.Size = new Size(105, 27);
+            this._port.Location = new Point(14, 72);
+            this._port.Size = new Size(145, 32);
             this._port.Text = "5050";
-            this._port.Font = new Font("Segoe UI", 10F);
+            this._port.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             this._port.BorderStyle = BorderStyle.FixedSingle;
             this._port.Name = "_port";
+            this._port.TextAlign = HorizontalAlignment.Center;
+            // ورودی IP در کنار پورت و با مقدار پیش‌فرض تمام رابط‌های IPv4.
+            this._hostLabel.AutoSize = true;
+            this._hostLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            this._hostLabel.ForeColor = Color.FromArgb(203, 213, 225);
+            this._hostLabel.Location = new Point(185, 48);
+            this._hostLabel.Name = "_hostLabel";
+            this._hostLabel.Text = "آدرس IP سرور";
+            this._host.Location = new Point(185, 72);
+            this._host.Size = new Size(190, 32);
+            this._host.Text = "0.0.0.0";
+            this._host.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            this._host.BorderStyle = BorderStyle.FixedSingle;
+            this._host.Name = "_host";
+            this._host.TextAlign = HorizontalAlignment.Center;
             this._hostInfoLabel.AutoSize = true;
             this._hostInfoLabel.ForeColor = Color.FromArgb(148, 163, 184);
             this._hostInfoLabel.Font = new Font("Segoe UI", 8.5F);
-            this._hostInfoLabel.Location = new Point(135, 82);
+            this._hostInfoLabel.Location = new Point(14, 110);
             this._hostInfoLabel.Name = "_hostInfoLabel";
             this._hostInfoLabel.Text = "میزبان: 0.0.0.0  (تمام رابط‌های شبکه)";
-            this._start.Text = "▶  شروع سرور";
-            this._start.Size = new Size(142, 38);
+            this._start.Text = "▶  اجرای سوکت";
+            this._start.Size = new Size(361, 42);
             this._start.FlatStyle = FlatStyle.Flat;
             this._start.FlatAppearance.BorderSize = 0;
-            this._start.BackColor = Color.FromArgb(22, 163, 74);
+            this._start.BackColor = Color.FromArgb(16, 185, 129);
             this._start.ForeColor = Color.White;
             this._start.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             this._start.Cursor = Cursors.Hand;
-            this._start.FlatAppearance.MouseOverBackColor = Color.FromArgb(21, 128, 61);
-            this._start.Location = new Point(14, 119);
+            this._start.FlatAppearance.MouseOverBackColor = Color.FromArgb(5, 150, 105);
+            this._start.Location = new Point(14, 143);
             this._start.Name = "_start";
-            this._stop.Text = "■  توقف سوکت";
-            this._stop.Size = new Size(128, 38);
-            this._stop.FlatStyle = FlatStyle.Flat;
-            this._stop.FlatAppearance.BorderSize = 1;
-            this._stop.FlatAppearance.BorderColor = Color.FromArgb(127, 29, 29);
-            this._stop.BackColor = Color.FromArgb(185, 28, 28);
-            this._stop.ForeColor = Color.White;
-            this._stop.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._stop.Cursor = Cursors.Hand;
-            this._stop.FlatAppearance.MouseOverBackColor = Color.FromArgb(153, 27, 27);
-            this._stop.Location = new Point(164, 119);
-            this._stop.Name = "_stop";
             this._leftLayout.Controls.Add(this._networkCard, 0, 0);
             // کارت کاربران آنلاین و اطلاعات شبکه هر کاربر
             this._usersCard.Dock = DockStyle.Fill;
-            this._usersCard.BackColor = Color.FromArgb(20, 30, 48);
+            this._usersCard.BackColor = Color.FromArgb(13, 31, 30);
             this._usersCard.BorderStyle = BorderStyle.FixedSingle;
             this._usersCard.Padding = new Padding(12);
             this._usersCard.Margin = new Padding(0, 0, 0, 8);
@@ -297,8 +303,8 @@ namespace ChatpApp.Server
             this._users.MultiSelect = false;
             this._users.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             this._users.BorderStyle = BorderStyle.None;
-            this._users.BackgroundColor = Color.FromArgb(14, 23, 39);
-            this._users.GridColor = Color.FromArgb(40, 55, 78);
+            this._users.BackgroundColor = Color.FromArgb(8, 23, 22);
+            this._users.GridColor = Color.FromArgb(29, 78, 66);
             this._users.Font = new Font("Segoe UI", 8.5F);
             this._users.ColumnHeadersHeight = 36;
             this._users.RowTemplate.Height = 34;
@@ -323,19 +329,19 @@ namespace ChatpApp.Server
             this._users.Columns.AddRange(new DataGridViewColumn[] {
                 this._avatarColumn, this._nameColumn, this._ipColumn, this._joinedColumn, this._durationColumn
             });
-            this._users.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(31, 45, 67);
+            this._users.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(20, 55, 48);
             this._users.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(226, 232, 240);
-            this._users.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(31, 45, 67);
-            this._users.DefaultCellStyle.BackColor = Color.FromArgb(20, 30, 48);
+            this._users.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(20, 55, 48);
+            this._users.DefaultCellStyle.BackColor = Color.FromArgb(13, 31, 30);
             this._users.DefaultCellStyle.ForeColor = Color.FromArgb(226, 232, 240);
-            this._users.DefaultCellStyle.SelectionBackColor = Color.FromArgb(37, 99, 235);
+            this._users.DefaultCellStyle.SelectionBackColor = Color.FromArgb(5, 150, 105);
             this._users.DefaultCellStyle.SelectionForeColor = Color.White;
             this._users.EnableHeadersVisualStyles = false;
             this._disconnect.Text = "قطع اتصال کاربر انتخاب‌شده";
             this._disconnect.Size = new Size(250, 36);
             this._disconnect.FlatStyle = FlatStyle.Flat;
             this._disconnect.FlatAppearance.BorderSize = 0;
-            this._disconnect.BackColor = Color.FromArgb(37, 99, 235);
+            this._disconnect.BackColor = Color.FromArgb(5, 150, 105);
             this._disconnect.ForeColor = Color.White;
             this._disconnect.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             this._disconnect.Cursor = Cursors.Hand;
@@ -362,7 +368,7 @@ namespace ChatpApp.Server
             this._rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 150F));
             this._rightLayout.Name = "_rightLayout";
             this._trafficHeader.Dock = DockStyle.Fill;
-            this._trafficHeader.BackColor = Color.FromArgb(20, 30, 48);
+            this._trafficHeader.BackColor = Color.FromArgb(13, 31, 30);
             this._trafficHeader.BorderStyle = BorderStyle.FixedSingle;
             this._trafficHeader.Padding = new Padding(12, 8, 12, 8);
             this._trafficHeader.Name = "_trafficHeader";
@@ -388,16 +394,16 @@ namespace ChatpApp.Server
             this._tabs.Controls.Add(this._messagesTab);
             this._logsTab.Text = "رویدادهای شبکه";
             this._logsTab.Name = "_logsTab";
-            this._logsTab.BackColor = Color.FromArgb(20, 30, 48);
+            this._logsTab.BackColor = Color.FromArgb(13, 31, 30);
             this._logsTab.Controls.Add(this._logs);
             this._messagesTab.Text = "پیام‌های قابل مدیریت";
             this._messagesTab.Name = "_messagesTab";
-            this._messagesTab.BackColor = Color.FromArgb(20, 30, 48);
+            this._messagesTab.BackColor = Color.FromArgb(13, 31, 30);
             this._messagesTab.Controls.Add(this._messages);
             this._logs.Dock = DockStyle.Fill;
             this._logs.IntegralHeight = false;
             this._logs.Font = new Font("Consolas", 9F);
-            this._logs.BackColor = Color.FromArgb(14, 23, 39);
+            this._logs.BackColor = Color.FromArgb(8, 23, 22);
             this._logs.ForeColor = Color.FromArgb(203, 213, 225);
             this._logs.BorderStyle = BorderStyle.None;
             this._logs.Items.AddRange(new object[] { "10:42:11  •  سرویس آماده شروع است.", "10:42:15  •  در انتظار اتصال کاربران..." });
@@ -405,7 +411,7 @@ namespace ChatpApp.Server
             this._messages.Dock = DockStyle.Fill;
             this._messages.IntegralHeight = false;
             this._messages.Font = new Font("Segoe UI", 9.5F);
-            this._messages.BackColor = Color.FromArgb(14, 23, 39);
+            this._messages.BackColor = Color.FromArgb(8, 23, 22);
             this._messages.ForeColor = Color.FromArgb(203, 213, 225);
             this._messages.BorderStyle = BorderStyle.None;
             this._messages.Items.AddRange(new object[] { "پیام نمونه برای انتخاب و سنجاق کردن" });
@@ -413,7 +419,7 @@ namespace ChatpApp.Server
             this._rightLayout.Controls.Add(this._tabs, 0, 1);
             // کارت ابزارهای مدیریتی برای انتشار پیام و سنجاق کردن پیام انتخاب‌شده
             this._composeCard.Dock = DockStyle.Fill;
-            this._composeCard.BackColor = Color.FromArgb(20, 30, 48);
+            this._composeCard.BackColor = Color.FromArgb(13, 31, 30);
             this._composeCard.BorderStyle = BorderStyle.FixedSingle;
             this._composeCard.Padding = new Padding(14);
             this._composeCard.Margin = new Padding(0, 10, 0, 0);
@@ -434,7 +440,7 @@ namespace ChatpApp.Server
             this._send.Size = new Size(126, 36);
             this._send.FlatStyle = FlatStyle.Flat;
             this._send.FlatAppearance.BorderSize = 0;
-            this._send.BackColor = Color.FromArgb(37, 99, 235);
+            this._send.BackColor = Color.FromArgb(5, 150, 105);
             this._send.ForeColor = Color.White;
             this._send.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             this._send.Cursor = Cursors.Hand;
@@ -444,7 +450,7 @@ namespace ChatpApp.Server
             this._pin.Size = new Size(188, 36);
             this._pin.FlatStyle = FlatStyle.Flat;
             this._pin.FlatAppearance.BorderSize = 0;
-            this._pin.BackColor = Color.FromArgb(37, 99, 235);
+            this._pin.BackColor = Color.FromArgb(5, 150, 105);
             this._pin.ForeColor = Color.White;
             this._pin.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             this._pin.Cursor = Cursors.Hand;

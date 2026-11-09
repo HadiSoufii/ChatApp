@@ -69,8 +69,8 @@ namespace ChatpApp.Server
         private void WireUiEvents()
         {
             _theme.Click += delegate { _dark = !_dark; ApplyTheme(); };
-            _start.Click += StartServer;
-            _stop.Click += delegate { StopServer(false); };
+            // یک دکمه، وضعیت واقعی Listener را کنترل می‌کند.
+            _start.Click += ToggleServer;
             _disconnect.Click += DisconnectUser;
             _send.Click += SendAnnouncement;
             _pin.Click += PinSelected;
@@ -137,9 +137,10 @@ namespace ChatpApp.Server
         // رنگ‌ها به‌صورت مرکزی اعمال می‌شوند تا کل پنل سرور بین دو تم هماهنگ تغییر کند.
         private void ApplyTheme()
         {
-            Color back = _dark ? Color.FromArgb(11, 18, 32) : Color.FromArgb(241, 245, 249);
-            Color card = _dark ? Color.FromArgb(20, 30, 48) : Color.White;
-            Color fore = _dark ? Color.FromArgb(232, 238, 247) : Color.FromArgb(30, 41, 59);
+            // پالت Emerald Dark با پس‌زمینه عمیق و تاکید زمردی.
+            Color back = _dark ? Color.FromArgb(7, 17, 17) : Color.FromArgb(240, 248, 245);
+            Color card = _dark ? Color.FromArgb(13, 31, 30) : Color.White;
+            Color fore = _dark ? Color.FromArgb(226, 245, 239) : Color.FromArgb(24, 48, 43);
             BackColor = back; ForeColor = fore; ThemeControls(this, card, fore);
             _rootPanel.BackColor = back;
             _headerPanel.BackColor = card;
@@ -147,14 +148,21 @@ namespace ChatpApp.Server
             _usersCard.BackColor = card;
             _trafficHeader.BackColor = card;
             _composeCard.BackColor = card;
-            _titleLabel.ForeColor = _dark ? Color.FromArgb(147, 197, 253) : Color.FromArgb(37, 99, 235);
-            _theme.BackColor = Color.FromArgb(37, 99, 235); _theme.ForeColor = Color.White;
-            _start.BackColor = Color.FromArgb(22, 163, 74); _start.ForeColor = Color.White;
-            _stop.BackColor = Color.FromArgb(185, 28, 28); _stop.ForeColor = Color.White;
+            _titleLabel.ForeColor = _dark ? Color.FromArgb(110, 231, 183) : Color.FromArgb(5, 150, 105);
+            _theme.BackColor = _dark ? Color.FromArgb(20, 83, 69) : Color.FromArgb(209, 250, 229);
+            _theme.ForeColor = _dark ? Color.White : Color.FromArgb(6, 78, 59);
+            // دکمه اصلی براساس وضعیت سرور رنگ می‌گیرد.
+            _start.BackColor = _running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);
+            _start.ForeColor = Color.White;
+            _start.FlatAppearance.MouseOverBackColor = Color.FromArgb(4, 120, 87);
             _unpin.BackColor = _dark ? Color.FromArgb(71, 85, 105) : Color.FromArgb(203, 213, 225);
             _unpin.ForeColor = _dark ? Color.White : Color.FromArgb(30, 41, 59);
-            _count.ForeColor = Color.FromArgb(34, 197, 94);
-            _traffic.ForeColor = _dark ? Color.FromArgb(96, 165, 250) : Color.FromArgb(37, 99, 235);
+            _count.ForeColor = Color.FromArgb(52, 211, 153);
+            _traffic.ForeColor = _dark ? Color.FromArgb(110, 231, 183) : Color.FromArgb(5, 150, 105);
+            _host.BackColor = _dark ? Color.FromArgb(8, 23, 22) : Color.FromArgb(248, 252, 250);
+            _port.BackColor = _dark ? Color.FromArgb(8, 23, 22) : Color.FromArgb(248, 252, 250);
+            _host.ForeColor = fore; _port.ForeColor = fore;
+            _hostLabel.ForeColor = fore; _portLabel.ForeColor = fore;
             if (_users != null) { _users.BackgroundColor = card; _users.DefaultCellStyle.BackColor = card; _users.DefaultCellStyle.ForeColor = fore;
                 _users.ColumnHeadersDefaultCellStyle.BackColor = _dark ? Color.FromArgb(31, 45, 67) : Color.FromArgb(226, 232, 240); _users.ColumnHeadersDefaultCellStyle.ForeColor = fore; _users.EnableHeadersVisualStyles = false; }
         }
@@ -162,8 +170,8 @@ namespace ChatpApp.Server
         {
             foreach (Control c in parent.Controls)
             {
-                if (c is Button) { c.BackColor = Color.FromArgb(37, 99, 235); c.ForeColor = Color.White; }
-                else if (c is TextBox || c is ListBox || c is DataGridView) { c.BackColor = _dark ? Color.FromArgb(14, 23, 39) : Color.FromArgb(248, 250, 252); c.ForeColor = fore; }
+                if (c is Button) { c.BackColor = _dark ? Color.FromArgb(5, 120, 87) : Color.FromArgb(16, 185, 129); c.ForeColor = Color.White; }
+                else if (c is TextBox || c is ListBox || c is DataGridView) { c.BackColor = _dark ? Color.FromArgb(8, 23, 22) : Color.FromArgb(248, 252, 250); c.ForeColor = fore; }
                 else { c.BackColor = card; c.ForeColor = fore; }
                 ThemeControls(c, card, fore);
             }
@@ -172,18 +180,30 @@ namespace ChatpApp.Server
         #endregion
 
         #region سرور چنداتصالی و چرخه عمر سوکت‌ها
-        private void StartServer(object sender, EventArgs e)
+        // دکمه واحد براساس وضعیت فعلی سرور، شروع یا توقف سوکت را انجام می‌دهد.
+        private void ToggleServer(object sender, EventArgs e)
+        {
+            if (_running) StopServer(false);
+            else StartServer();
+        }
+
+        private void StartServer()
         {
             int port;
             if (!int.TryParse(_port.Text.Trim(), out port) || port < 1 || port > 65535)
             { MessageBox.Show("شماره پورت باید بین ۱ تا ۶۵۵۳۵ باشد.", "پورت نامعتبر", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
+            // آدرس واردشده باید IP معتبر باشد؛ 0.0.0.0 یعنی تمام رابط‌های IPv4.
+            IPAddress bindAddress;
+            if (!IPAddress.TryParse(_host.Text.Trim(), out bindAddress))
+            { MessageBox.Show("آدرس IP واردشده معتبر نیست.", "IP نامعتبر", MessageBoxButtons.OK, MessageBoxIcon.Warning); _host.Focus(); return; }
             try
             {
-                // با گوش‌دادن روی IPAddress.Any، کلاینت‌های همان کامپیوتر و شبکه محلی می‌توانند وصل شوند.
-                _listener = new TcpListener(IPAddress.Any, port); _listener.Start(100); _running = true;
+                // Listener دقیقاً روی IP و پورتی که مدیر تعیین کرده Bind می‌شود.
+                _listener = new TcpListener(bindAddress, port); _listener.Start(100); _running = true;
                 TcpListener currentListener = _listener;
                 _acceptThread = new Thread(new ThreadStart(delegate { AcceptLoop(currentListener); })) { IsBackground = true, Name = "ChatServer-Accept" }; _acceptThread.Start();
-                SetState(true); Log("سرور روی پورت " + port + " فعال شد و آماده پذیرش چندین کلاینت است.");
+                SetState(true); Log("سرور روی " + bindAddress + ":" + port + " فعال شد و آماده پذیرش چندین کلاینت است.");
             }
             catch (Exception ex) { _running = false; Log("خطا در شروع سرور: " + ex.Message); MessageBox.Show(ex.Message, "خطای شبکه"); }
         }
@@ -497,7 +517,11 @@ namespace ChatpApp.Server
             {
                 _status.Text = running ? "● سرور فعال است و آماده دریافت اتصال" : "● سرور متوقف است";
                 _status.ForeColor = running ? Color.FromArgb(34, 197, 94) : Color.FromArgb(239, 100, 100);
-                _start.Enabled = !running; _stop.Enabled = running; _port.Enabled = !running;
+                _start.Enabled = true;
+                _start.Text = running ? "■  توقف سوکت" : "▶  اجرای سوکت";
+                _start.BackColor = running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);
+                _start.FlatAppearance.MouseOverBackColor = Color.FromArgb(4, 120, 87);
+                _port.Enabled = !running; _host.Enabled = !running;
             });
         }
         private void Ui(Action action)

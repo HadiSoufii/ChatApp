@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -54,6 +55,8 @@ namespace ChatpApp.Server
                     RefreshUsers();
                     // پس از تکمیل چیدمان واقعی فرم، فاصله جداکننده را با اندازه نهایی تنظیم می‌کنیم.
                     SetSafeSplitterDistance();
+                    // گوشه‌های گرد و حاشیه‌های ظریف روی کارت‌ها، ورودی‌ها و دکمه‌ها اعمال می‌شود.
+                    ApplyModernCorners(this);
                 };
                 FormClosing += OnClosing;
                 // این تایمر مدت آنلاین بودن و تعداد اتصال‌ها را در پنل سرور تازه‌سازی می‌کند.
@@ -62,6 +65,7 @@ namespace ChatpApp.Server
                 _timer.Start();
             }
             ApplyTheme();
+            ConfigureModernTabs();
         }
 
         #region اتصال رویدادهای رابط کاربری
@@ -123,12 +127,76 @@ namespace ChatpApp.Server
 
             // فاصله پیشنهادی پنل اول را داخل بازه مجاز قرار می‌دهیم.
             int maximumDistance = availableWidth - panel2Minimum - splitterWidth;
-            int safeDistance = Math.Max(panel1Minimum, Math.Min(400, maximumDistance));
+            // پنل تنظیمات سمت راست حدود ۴۴ درصد عرض را می‌گیرد تا فضای پیام‌ها هم نفس‌دار باشد.
+            int desiredDistance = (int)(availableWidth * 0.44);
+            int safeDistance = Math.Max(panel1Minimum, Math.Min(desiredDistance, maximumDistance));
             _mainSplit.SplitterDistance = safeDistance;
 
             // پس از تنظیم فاصله معتبر، حداقل عرض نهایی پنل‌ها را اعمال می‌کنیم.
             _mainSplit.Panel1MinSize = panel1Minimum;
             _mainSplit.Panel2MinSize = panel2Minimum;
+        }
+
+        // مسیر گرافیکی با گوشه‌های گرد برای کنترل‌های اصلی فرم.
+        private GraphicsPath CreateRoundedPath(Rectangle bounds, int radius)
+        {
+            int diameter = Math.Max(2, radius * 2);
+            GraphicsPath path = new GraphicsPath();
+            path.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        // فرم کارت‌محور با گوشه‌های گرد و خط دور ملایم ایجاد می‌کند.
+        private void ApplyModernCorners(Control parent)
+        {
+            foreach (Control control in parent.Controls)
+            {
+                if (control.Width > 0 && control.Height > 0 &&
+                    (control is Panel || control is Button || control is TextBox || control is TabControl))
+                {
+                    Action applyRegion = delegate
+                    {
+                        if (control.Width < 4 || control.Height < 4) return;
+                        using (GraphicsPath path = CreateRoundedPath(new Rectangle(0, 0, control.Width - 1, control.Height - 1), control is Button ? 12 : 10))
+                            control.Region = new Region(path);
+                    };
+                    applyRegion();
+                    control.Resize += delegate { applyRegion(); };
+                    if (control is Panel || control is Button)
+                    {
+                        control.Paint += delegate(object sender, PaintEventArgs e)
+                        {
+                            if (control.Width < 4 || control.Height < 4) return;
+                            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                            using (GraphicsPath path = CreateRoundedPath(new Rectangle(1, 1, control.Width - 3, control.Height - 3), control is Button ? 12 : 10))
+                            using (Pen pen = new Pen(_dark ? Color.FromArgb(35, 110, 88) : Color.FromArgb(167, 219, 198), 1F))
+                                e.Graphics.DrawPath(pen, path);
+                        };
+                    }
+                }
+                ApplyModernCorners(control);
+            }
+        }
+
+        // تب‌ها به شکل دکمه‌های انتخابی زمردی رسم می‌شوند.
+        private void ConfigureModernTabs()
+        {
+            _tabs.DrawItem += delegate(object sender, DrawItemEventArgs e)
+            {
+                bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+                Rectangle rect = new Rectangle(e.Bounds.X + 3, e.Bounds.Y + 3, e.Bounds.Width - 6, e.Bounds.Height - 6);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (GraphicsPath path = CreateRoundedPath(rect, 8))
+                using (SolidBrush brush = new SolidBrush(selected ? Color.FromArgb(5, 150, 105) : (_dark ? Color.FromArgb(17, 43, 42) : Color.FromArgb(225, 241, 234))))
+                    e.Graphics.FillPath(brush, path);
+                TextRenderer.DrawText(e.Graphics, _tabs.TabPages[e.Index].Text, new Font("Segoe UI", 8.5F, FontStyle.Bold), rect,
+                    selected ? Color.White : (_dark ? Color.FromArgb(203, 230, 220) : Color.FromArgb(35, 75, 62)),
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.RightToLeft);
+            };
         }
 
         #endregion
@@ -149,7 +217,9 @@ namespace ChatpApp.Server
             _trafficHeader.BackColor = card;
             _composeCard.BackColor = card;
             _titleLabel.ForeColor = _dark ? Color.FromArgb(110, 231, 183) : Color.FromArgb(5, 150, 105);
-            _theme.BackColor = _dark ? Color.FromArgb(20, 83, 69) : Color.FromArgb(209, 250, 229);
+            _readyBadge.BackColor = _dark ? Color.FromArgb(6, 78, 59) : Color.FromArgb(209, 250, 229);
+            _readyBadge.ForeColor = _dark ? Color.FromArgb(167, 243, 208) : Color.FromArgb(6, 78, 59);
+            _theme.BackColor = _dark ? Color.FromArgb(13, 56, 49) : Color.FromArgb(209, 250, 229);
             _theme.ForeColor = _dark ? Color.White : Color.FromArgb(6, 78, 59);
             // دکمه اصلی براساس وضعیت سرور رنگ می‌گیرد.
             _start.BackColor = _running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);
@@ -453,12 +523,43 @@ namespace ChatpApp.Server
         // پیام مدیر با هویت سرور منتشر می‌شود و از پیام‌های عادی کاربران متمایز است.
         private void SendAnnouncement(object sender, EventArgs e)
         {
-            string text = (_announcement.Text ?? "").Trim(); if (!_running || text.Length == 0) return;
+            if (!_running) { MessageBox.Show("برای ارسال پیام همگانی ابتدا سوکت را اجرا کنید.", "سرور متوقف است"); return; }
+            // چون ورودی پیام در نوار ابزار تصویر مرجع دیده نمی‌شود، متن پیام در پنجره‌ای جمع‌وجور دریافت می‌شود.
+            string text = PromptAnnouncementText();
+            if (string.IsNullOrWhiteSpace(text)) return;
             if (text.Length > 4000) { MessageBox.Show("پیام نباید بیشتر از ۴۰۰۰ نویسه باشد."); return; }
             var m = new ChatMessageInfo { MessageId = Guid.NewGuid().ToString("N"), SenderName = "سرور", SenderAvatar = "🖥️",
                 Text = text, TimestampTicks = DateTime.Now.Ticks, IsServer = true };
             Store(m); AddServerMessage(m); Broadcast(MessagePacket("Message", m)); Log("پیام مدیریتی برای همه کاربران ارسال شد."); _announcement.Clear();
         }
+        // پنجره ورودی پیام مدیریتی با همان تم تیره و جهت راست‌به‌چپ ساخته می‌شود.
+        private string PromptAnnouncementText()
+        {
+            Form dialog = new Form();
+            TextBox input = new TextBox();
+            Button accept = new Button();
+            Button cancel = new Button();
+            dialog.Text = "ارسال پیام همگانی";
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dialog.MinimizeBox = false; dialog.MaximizeBox = false;
+            dialog.ClientSize = new Size(430, 150);
+            dialog.BackColor = Color.FromArgb(10, 32, 31);
+            dialog.ForeColor = Color.White;
+            dialog.RightToLeft = RightToLeft.Yes;
+            Label caption = new Label { Text = "متن پیام اطلاع‌رسانی را وارد کنید:", AutoSize = true, Location = new Point(18, 16), ForeColor = Color.White };
+            input.Location = new Point(18, 45); input.Size = new Size(394, 30); input.Font = new Font("Segoe UI", 10F);
+            input.Multiline = true; input.Height = 42; input.BackColor = Color.FromArgb(7, 25, 24); input.ForeColor = Color.White;
+            accept.Text = "ارسال پیام"; accept.DialogResult = DialogResult.OK; accept.Location = new Point(214, 102); accept.Size = new Size(100, 32);
+            cancel.Text = "انصراف"; cancel.DialogResult = DialogResult.Cancel; cancel.Location = new Point(318, 102); cancel.Size = new Size(94, 32);
+            foreach (Button button in new[] { accept, cancel }) { button.FlatStyle = FlatStyle.Flat; button.FlatAppearance.BorderSize = 0; button.BackColor = Color.FromArgb(5, 150, 105); button.ForeColor = Color.White; button.Font = new Font("Segoe UI", 9F, FontStyle.Bold); }
+            dialog.Controls.Add(caption); dialog.Controls.Add(input); dialog.Controls.Add(accept); dialog.Controls.Add(cancel);
+            dialog.AcceptButton = accept; dialog.CancelButton = cancel;
+            string result = dialog.ShowDialog(this) == DialogResult.OK ? input.Text.Trim() : null;
+            dialog.Dispose();
+            return result;
+        }
+
         private void PinSelected(object sender, EventArgs e)
         {
             var item = _messages.SelectedItem as ServerMessageItem;
@@ -481,7 +582,20 @@ namespace ChatpApp.Server
         private string Short(string s, int length) { if (string.IsNullOrEmpty(s) || s.Length <= length) return s ?? ""; return s.Substring(0, length) + "…"; }
         private void AddServerMessage(ChatMessageInfo m)
         {
-            Ui(delegate { if (_messages == null || _messages.IsDisposed) return; _messages.Items.Add(new ServerMessageItem { Id = m.MessageId, User = m.SenderName, Text = m.Text }); _messages.TopIndex = _messages.Items.Count - 1; });
+            Ui(delegate
+            {
+                // هر پیام در تب مدیریتی و تب پیام‌های شبکه نمایش داده می‌شود؛ شناسه در تب مدیریتی برای سنجاق حفظ می‌شود.
+                if (_messages != null && !_messages.IsDisposed)
+                {
+                    _messages.Items.Add(new ServerMessageItem { Id = m.MessageId, User = m.SenderName, Text = m.Text });
+                    if (_messages.Items.Count > 0) _messages.TopIndex = _messages.Items.Count - 1;
+                }
+                if (_networkMessages != null && !_networkMessages.IsDisposed)
+                {
+                    _networkMessages.Items.Add(DateTime.Now.ToString("HH:mm:ss") + "  •  " + m.SenderName + ": " + Short(m.Text, 110));
+                    if (_networkMessages.Items.Count > 0) _networkMessages.TopIndex = _networkMessages.Items.Count - 1;
+                }
+            });
         }
         private void Log(string value)
         {
@@ -517,6 +631,9 @@ namespace ChatpApp.Server
             {
                 _status.Text = running ? "● سرور فعال است و آماده دریافت اتصال" : "● سرور متوقف است";
                 _status.ForeColor = running ? Color.FromArgb(34, 197, 94) : Color.FromArgb(239, 100, 100);
+                // نشانگر سربرگ هم‌زمان با وضعیت واقعی سوکت تغییر می‌کند.
+                _readyBadge.Text = running ? "●  سرور در حال اجرا" : "●  سرور آماده به اجرا";
+                _readyBadge.BackColor = running ? Color.FromArgb(5, 120, 87) : (_dark ? Color.FromArgb(6, 78, 59) : Color.FromArgb(209, 250, 229));
                 _start.Enabled = true;
                 _start.Text = running ? "■  توقف سوکت" : "▶  اجرای سوکت";
                 _start.BackColor = running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);

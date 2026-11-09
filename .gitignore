@@ -1,0 +1,98 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+out/
+[Ll]og/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.cache
+
+# Visual Studio generated files
+Generated Files/
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# .NET
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nupkg
+*.snupkg
+
+# NuGet
+*.nuget.props
+*.nuget.targets
+packages/
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+*.swp
+*.swo
+
+# Publish output
+publish/
+[Pp]ublish/
+
+# Coverage
+coverage/
+coverage.*
+
+# Local configuration / secrets
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+# Database files (uncomment if local databases should not be committed)
+# *.mdf
+# *.ldf
+# *.db
+# *.sqlite
+
+# Installer / deployment temporary files
+*.msi
+*.msix
+*.appx
+*.appxbundle
+
+# Crash dumps
+*.dmp

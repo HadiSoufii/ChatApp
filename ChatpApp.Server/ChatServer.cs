@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -55,8 +54,6 @@ namespace ChatpApp.Server
                     RefreshUsers();
                     // پس از تکمیل چیدمان واقعی فرم، فاصله جداکننده را با اندازه نهایی تنظیم می‌کنیم.
                     SetSafeSplitterDistance();
-                    // گوشه‌های گرد و حاشیه‌های ظریف روی کارت‌ها، ورودی‌ها و دکمه‌ها اعمال می‌شود.
-                    ApplyModernCorners(this);
                 };
                 FormClosing += OnClosing;
                 // این تایمر مدت آنلاین بودن و تعداد اتصال‌ها را در پنل سرور تازه‌سازی می‌کند.
@@ -65,7 +62,6 @@ namespace ChatpApp.Server
                 _timer.Start();
             }
             ApplyTheme();
-            ConfigureModernTabs();
         }
 
         #region اتصال رویدادهای رابط کاربری
@@ -108,8 +104,9 @@ namespace ChatpApp.Server
                 return;
 
             // حداقل عرض مطلوب دو پنل مدیریت سرور.
-            int panel1Minimum = 350;
-            int panel2Minimum = 520;
+            // پنل اول سمت چپ، فضای جریان پیام‌ها را می‌گیرد و پنل دوم سمت راست تنظیمات را نشان می‌دهد.
+            int panel1Minimum = 550;
+            int panel2Minimum = 420;
 
             // اگر فضای واقعی کافی نبود، حداقل‌ها را متناسب با عرض موجود کوچک می‌کنیم.
             int availableForPanels = availableWidth - splitterWidth;
@@ -127,8 +124,8 @@ namespace ChatpApp.Server
 
             // فاصله پیشنهادی پنل اول را داخل بازه مجاز قرار می‌دهیم.
             int maximumDistance = availableWidth - panel2Minimum - splitterWidth;
-            // پنل تنظیمات سمت راست حدود ۴۴ درصد عرض را می‌گیرد تا فضای پیام‌ها هم نفس‌دار باشد.
-            int desiredDistance = (int)(availableWidth * 0.44);
+            // پنل پیام‌ها در سمت چپ حدود ۵۶ درصد عرض فرم را می‌گیرد.
+            int desiredDistance = (int)(availableWidth * 0.56);
             int safeDistance = Math.Max(panel1Minimum, Math.Min(desiredDistance, maximumDistance));
             _mainSplit.SplitterDistance = safeDistance;
 
@@ -136,70 +133,6 @@ namespace ChatpApp.Server
             _mainSplit.Panel1MinSize = panel1Minimum;
             _mainSplit.Panel2MinSize = panel2Minimum;
         }
-
-        // مسیر گرافیکی با گوشه‌های گرد برای کنترل‌های اصلی فرم.
-        private GraphicsPath CreateRoundedPath(Rectangle bounds, int radius)
-        {
-            int diameter = Math.Max(2, radius * 2);
-            GraphicsPath path = new GraphicsPath();
-            path.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
-            path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
-            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
-            path.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
-            path.CloseFigure();
-            return path;
-        }
-
-        // فرم کارت‌محور با گوشه‌های گرد و خط دور ملایم ایجاد می‌کند.
-        private void ApplyModernCorners(Control parent)
-        {
-            foreach (Control control in parent.Controls)
-            {
-                if (control.Width > 0 && control.Height > 0 &&
-                    (control is Panel || control is Button || control is TextBox || control is TabControl))
-                {
-                    Action applyRegion = delegate
-                    {
-                        if (control.Width < 4 || control.Height < 4) return;
-                        using (GraphicsPath path = CreateRoundedPath(new Rectangle(0, 0, control.Width - 1, control.Height - 1), control is Button ? 12 : 10))
-                            control.Region = new Region(path);
-                    };
-                    applyRegion();
-                    control.Resize += delegate { applyRegion(); };
-                    if (control is Panel || control is Button)
-                    {
-                        control.Paint += delegate(object sender, PaintEventArgs e)
-                        {
-                            if (control.Width < 4 || control.Height < 4) return;
-                            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                            using (GraphicsPath path = CreateRoundedPath(new Rectangle(1, 1, control.Width - 3, control.Height - 3), control is Button ? 12 : 10))
-                            using (Pen pen = new Pen(_dark ? Color.FromArgb(35, 110, 88) : Color.FromArgb(167, 219, 198), 1F))
-                                e.Graphics.DrawPath(pen, path);
-                        };
-                    }
-                }
-                ApplyModernCorners(control);
-            }
-        }
-
-        // تب‌ها به شکل دکمه‌های انتخابی زمردی رسم می‌شوند.
-        private void ConfigureModernTabs()
-        {
-            _tabs.DrawItem += delegate(object sender, DrawItemEventArgs e)
-            {
-                bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-                Rectangle rect = new Rectangle(e.Bounds.X + 3, e.Bounds.Y + 3, e.Bounds.Width - 6, e.Bounds.Height - 6);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (GraphicsPath path = CreateRoundedPath(rect, 8))
-                using (SolidBrush brush = new SolidBrush(selected ? Color.FromArgb(5, 150, 105) : (_dark ? Color.FromArgb(17, 43, 42) : Color.FromArgb(225, 241, 234))))
-                    e.Graphics.FillPath(brush, path);
-                TextRenderer.DrawText(e.Graphics, _tabs.TabPages[e.Index].Text, new Font("Segoe UI", 8.5F, FontStyle.Bold), rect,
-                    selected ? Color.White : (_dark ? Color.FromArgb(203, 230, 220) : Color.FromArgb(35, 75, 62)),
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.RightToLeft);
-            };
-        }
-
-        #endregion
 
         #region تنظیم ظاهر و رنگ‌بندی فرم
         // رنگ‌ها به‌صورت مرکزی اعمال می‌شوند تا کل پنل سرور بین دو تم هماهنگ تغییر کند.
@@ -216,6 +149,22 @@ namespace ChatpApp.Server
             _usersCard.BackColor = card;
             _trafficHeader.BackColor = card;
             _composeCard.BackColor = card;
+            // رنگ گرادیان و حاشیه کارت‌ها با تم جاری هماهنگ می‌شود.
+            ModernCardPanel[] cards = { _headerPanel, _networkCard, _usersCard, _trafficHeader, _composeCard };
+            foreach (ModernCardPanel panel in cards)
+            {
+                panel.EndColor = _dark ? Color.FromArgb(8, 29, 28) : Color.FromArgb(232, 246, 239);
+                panel.BorderColor = _dark ? Color.FromArgb(27, 104, 82) : Color.FromArgb(160, 211, 187);
+            }
+            _rootPanel.BottomColor = _dark ? Color.FromArgb(4, 35, 32) : Color.FromArgb(222, 241, 232);
+            _tabs.SelectedTop = _dark ? Color.FromArgb(18, 166, 119) : Color.FromArgb(16, 185, 129);
+            _tabs.SelectedBottom = _dark ? Color.FromArgb(5, 108, 82) : Color.FromArgb(5, 150, 105);
+            _tabs.IdleTop = _dark ? Color.FromArgb(15, 43, 40) : Color.FromArgb(225, 241, 232);
+            _tabs.IdleBottom = _dark ? Color.FromArgb(9, 31, 29) : Color.FromArgb(211, 232, 221);
+            _logs.RowColor = _networkMessages.RowColor = _messages.RowColor = _dark ? Color.FromArgb(8, 26, 25) : Color.FromArgb(250, 253, 251);
+            _logs.AlternateRowColor = _networkMessages.AlternateRowColor = _messages.AlternateRowColor = _dark ? Color.FromArgb(10, 31, 29) : Color.FromArgb(239, 248, 243);
+            _logs.SelectedRowColor = _networkMessages.SelectedRowColor = _messages.SelectedRowColor = _dark ? Color.FromArgb(15, 72, 57) : Color.FromArgb(187, 247, 208);
+            _logs.AccentColor = _networkMessages.AccentColor = _messages.AccentColor = Color.FromArgb(52, 211, 153);
             _titleLabel.ForeColor = _dark ? Color.FromArgb(110, 231, 183) : Color.FromArgb(5, 150, 105);
             _readyBadge.BackColor = _dark ? Color.FromArgb(6, 78, 59) : Color.FromArgb(209, 250, 229);
             _readyBadge.ForeColor = _dark ? Color.FromArgb(167, 243, 208) : Color.FromArgb(6, 78, 59);
@@ -224,13 +173,14 @@ namespace ChatpApp.Server
             // دکمه اصلی براساس وضعیت سرور رنگ می‌گیرد.
             _start.BackColor = _running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);
             _start.ForeColor = Color.White;
-            _start.FlatAppearance.MouseOverBackColor = Color.FromArgb(4, 120, 87);
+            _start.HoverColor = _running ? Color.FromArgb(4, 120, 87) : Color.FromArgb(5, 150, 105);
+            _start.PressedColor = _running ? Color.FromArgb(3, 95, 70) : Color.FromArgb(4, 110, 80);
             _unpin.BackColor = _dark ? Color.FromArgb(71, 85, 105) : Color.FromArgb(203, 213, 225);
             _unpin.ForeColor = _dark ? Color.White : Color.FromArgb(30, 41, 59);
             _count.ForeColor = Color.FromArgb(52, 211, 153);
             _traffic.ForeColor = _dark ? Color.FromArgb(110, 231, 183) : Color.FromArgb(5, 150, 105);
-            _host.BackColor = _dark ? Color.FromArgb(8, 23, 22) : Color.FromArgb(248, 252, 250);
-            _port.BackColor = _dark ? Color.FromArgb(8, 23, 22) : Color.FromArgb(248, 252, 250);
+            _host.BackColor = _dark ? Color.FromArgb(8, 28, 27) : Color.FromArgb(248, 252, 250);
+            _port.BackColor = _dark ? Color.FromArgb(8, 28, 27) : Color.FromArgb(248, 252, 250);
             _host.ForeColor = fore; _port.ForeColor = fore;
             _hostLabel.ForeColor = fore; _portLabel.ForeColor = fore;
             if (_users != null) { _users.BackgroundColor = card; _users.DefaultCellStyle.BackColor = card; _users.DefaultCellStyle.ForeColor = fore;
@@ -630,10 +580,12 @@ namespace ChatpApp.Server
             Ui(delegate
             {
                 _status.Text = running ? "● سرور فعال است و آماده دریافت اتصال" : "● سرور متوقف است";
-                _status.ForeColor = running ? Color.FromArgb(34, 197, 94) : Color.FromArgb(239, 100, 100);
+                _status.ForeColor = running ? Color.FromArgb(52, 211, 153) : Color.FromArgb(239, 100, 100);
                 // نشانگر سربرگ هم‌زمان با وضعیت واقعی سوکت تغییر می‌کند.
                 _readyBadge.Text = running ? "●  سرور در حال اجرا" : "●  سرور آماده به اجرا";
                 _readyBadge.BackColor = running ? Color.FromArgb(5, 120, 87) : (_dark ? Color.FromArgb(6, 78, 59) : Color.FromArgb(209, 250, 229));
+                _start.HoverColor = running ? Color.FromArgb(4, 120, 87) : Color.FromArgb(5, 150, 105);
+                _start.PressedColor = running ? Color.FromArgb(3, 95, 70) : Color.FromArgb(4, 110, 80);
                 _start.Enabled = true;
                 _start.Text = running ? "■  توقف سوکت" : "▶  اجرای سوکت";
                 _start.BackColor = running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);

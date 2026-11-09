@@ -39,11 +39,16 @@ namespace ChatpApp.Server
 
         public ChatServer()
         {
-            // تمام کنترل‌ها در فایل Designer ساخته می‌شوند و در حالت طراحی هم قابل مشاهده هستند.
+            // فایل Designer فقط از کنترل‌های استاندارد WinForms استفاده می‌کند تا Rider بتواند سطح طراحی را بارگذاری کند.
             InitializeComponent();
-            WireUiEvents();
-            // در زمان طراحی، داده‌های نمونه برای دیدن چیدمان نگه داشته می‌شوند و تایمر شبکه فعال نمی‌شود.
+
+            // فقط هنگام اجرای برنامه، کنترل‌های استاندارد با نسخه‌های سفارشی Emerald جایگزین می‌شوند.
             bool designTime = LicenseManager.UsageMode == LicenseUsageMode.Designtime;
+            if (!designTime)
+                UpgradeModernControls();
+
+            // رویدادها پس از جایگزینی کنترل‌ها متصل می‌شوند تا به نمونه درست اشاره کنند.
+            WireUiEvents();
             if (!designTime)
             {
                 _logs.Items.Clear();
@@ -63,6 +68,182 @@ namespace ChatpApp.Server
             }
             ApplyTheme();
         }
+
+        #region جایگزینی کنترل‌های استاندارد با کنترل‌های مدرن در زمان اجرا
+
+        // ویژگی‌های اصلی کنترل قبلی را به نمونه سفارشی منتقل می‌کند.
+        private void CopyControlSettings(Control source, Control target)
+        {
+            target.Name = source.Name;
+            target.Text = source.Text;
+            target.Location = source.Location;
+            target.Size = source.Size;
+            target.Dock = source.Dock;
+            target.Anchor = source.Anchor;
+            target.Margin = source.Margin;
+            target.Padding = source.Padding;
+            target.MinimumSize = source.MinimumSize;
+            target.MaximumSize = source.MaximumSize;
+            target.AutoSize = source.AutoSize;
+            target.BackColor = source.BackColor;
+            target.ForeColor = source.ForeColor;
+            target.Font = source.Font;
+            target.RightToLeft = source.RightToLeft;
+            target.Enabled = source.Enabled;
+            target.Visible = source.Visible;
+            target.TabIndex = source.TabIndex;
+            target.TabStop = source.TabStop;
+            target.Cursor = source.Cursor;
+            target.Tag = source.Tag;
+        }
+
+        // کنترل جدید را در همان جایگاه کنترل قبلی قرار می‌دهد و خانه جدول چیدمان را حفظ می‌کند.
+        private void ReplaceControlInParent(Control source, Control target)
+        {
+            Control parent = source.Parent;
+            if (parent == null)
+                throw new InvalidOperationException("کنترل برای جایگزینی باید والد داشته باشد.");
+
+            int childIndex = parent.Controls.GetChildIndex(source);
+            TableLayoutPanel table = parent as TableLayoutPanel;
+            TableLayoutPanelCellPosition cell = table == null
+                ? new TableLayoutPanelCellPosition(-1, -1)
+                : table.GetCellPosition(source);
+
+            parent.Controls.Add(target);
+
+            if (table != null)
+            {
+                table.SetColumnSpan(target, table.GetColumnSpan(source));
+                table.SetRowSpan(target, table.GetRowSpan(source));
+                table.SetCellPosition(target, cell);
+            }
+
+            parent.Controls.SetChildIndex(target, childIndex);
+            parent.Controls.Remove(source);
+            source.Dispose();
+        }
+
+        // پنل سفارشی را جایگزین می‌کند و همه کنترل‌های فرزند پنل قبلی را نگه می‌دارد.
+        private T ReplacePanel<T>(Panel source) where T : Panel, new()
+        {
+            T target = new T();
+            CopyControlSettings(source, target);
+
+            Control[] children = source.Controls.Cast<Control>().ToArray();
+            source.Controls.Clear();
+            target.Controls.AddRange(children);
+
+            ReplaceControlInParent(source, target);
+            return target;
+        }
+
+        // دکمه مدرن با حفظ متن، اندازه، فونت و رنگ پایه ساخته می‌شود.
+        private ModernButton ReplaceButton(Button source)
+        {
+            ModernButton target = new ModernButton();
+            CopyControlSettings(source, target);
+            target.HoverColor = Color.FromArgb(5, 150, 105);
+            target.PressedColor = Color.FromArgb(4, 105, 78);
+            target.BorderColor = Color.FromArgb(61, 203, 153);
+            ReplaceControlInParent(source, target);
+            return target;
+        }
+
+        // ورودی سفارشی را با انتقال متن و تنظیمات TextBox قبلی می‌سازد.
+        private ModernTextBox ReplaceTextBox(Control source)
+        {
+            TextBox oldTextBox = source as TextBox;
+            if (oldTextBox == null)
+                throw new InvalidOperationException("ورودی اولیه باید از نوع TextBox باشد.");
+
+            ModernTextBox target = new ModernTextBox();
+            CopyControlSettings(source, target);
+            target.TextAlign = oldTextBox.TextAlign;
+            target.MaxLength = oldTextBox.MaxLength;
+            target.ReadOnly = oldTextBox.ReadOnly;
+            target.Height = Math.Max(38, source.Height);
+
+            ReplaceControlInParent(source, target);
+            return target;
+        }
+
+        // آیتم‌ها و وضعیت انتخاب فهرست قبلی به فهرست سفارشی منتقل می‌شوند.
+        private ModernListBox ReplaceListBox(ListBox source)
+        {
+            ModernListBox target = new ModernListBox();
+            CopyControlSettings(source, target);
+            target.SelectionMode = source.SelectionMode;
+            target.HorizontalScrollbar = source.HorizontalScrollbar;
+            target.ScrollAlwaysVisible = source.ScrollAlwaysVisible;
+            target.Sorted = source.Sorted;
+            target.ItemHeight = 36;
+
+            foreach (object item in source.Items)
+                target.Items.Add(item);
+
+            if (source.SelectedIndex >= 0 && source.SelectedIndex < target.Items.Count)
+                target.SelectedIndex = source.SelectedIndex;
+
+            if (target.Items.Count > 0)
+                target.TopIndex = Math.Max(0, Math.Min(source.TopIndex, target.Items.Count - 1));
+
+            ReplaceControlInParent(source, target);
+            return target;
+        }
+
+        // صفحه‌های تب قبلی بدون حذف محتوا به کنترل تب سفارشی منتقل می‌شوند.
+        private ModernTabControl ReplaceTabControl(TabControl source)
+        {
+            ModernTabControl target = new ModernTabControl();
+            CopyControlSettings(source, target);
+            target.Alignment = source.Alignment;
+            target.Multiline = source.Multiline;
+            target.ShowToolTips = source.ShowToolTips;
+            target.HotTrack = source.HotTrack;
+
+            int selectedIndex = source.SelectedIndex;
+            TabPage[] pages = source.TabPages.Cast<TabPage>().ToArray();
+
+            foreach (TabPage page in pages)
+                source.TabPages.Remove(page);
+
+            target.TabPages.AddRange(pages);
+
+            if (target.TabPages.Count > 0)
+                target.SelectedIndex = Math.Max(0, Math.Min(selectedIndex, target.TabPages.Count - 1));
+
+            ReplaceControlInParent(source, target);
+            return target;
+        }
+
+        // این متد فقط در زمان اجرا فراخوانی می‌شود؛ Designer همچنان کنترل‌های استاندارد را می‌بیند.
+        private void UpgradeModernControls()
+        {
+            _rootPanel = ReplacePanel<EmeraldBackgroundPanel>(_rootPanel);
+            _headerPanel = ReplacePanel<ModernCardPanel>(_headerPanel);
+            _networkCard = ReplacePanel<ModernCardPanel>(_networkCard);
+            _usersCard = ReplacePanel<ModernCardPanel>(_usersCard);
+            _trafficHeader = ReplacePanel<ModernCardPanel>(_trafficHeader);
+            _composeCard = ReplacePanel<ModernCardPanel>(_composeCard);
+
+            _theme = ReplaceButton(_theme);
+            _start = ReplaceButton(_start);
+            _disconnect = ReplaceButton(_disconnect);
+            _send = ReplaceButton(_send);
+            _pin = ReplaceButton(_pin);
+            _unpin = ReplaceButton(_unpin);
+
+            _port = ReplaceTextBox(_port);
+            _host = ReplaceTextBox(_host);
+
+            _tabs = ReplaceTabControl(_tabs);
+            _logs = ReplaceListBox(_logs);
+            _networkMessages = ReplaceListBox(_networkMessages);
+            _messages = ReplaceListBox(_messages);
+        }
+
+        #endregion
 
         #region اتصال رویدادهای رابط کاربری
         // در این بخش فقط رفتار دکمه‌ها و رویدادهای فرم تعریف شده است؛ چیدمان در Designer قرار دارد.
@@ -149,22 +330,45 @@ namespace ChatpApp.Server
             _usersCard.BackColor = card;
             _trafficHeader.BackColor = card;
             _composeCard.BackColor = card;
-            // رنگ گرادیان و حاشیه کارت‌ها با تم جاری هماهنگ می‌شود.
-            ModernCardPanel[] cards = { _headerPanel, _networkCard, _usersCard, _trafficHeader, _composeCard };
-            foreach (ModernCardPanel panel in cards)
+            // تنظیمات اختصاصی فقط روی کنترل‌هایی اعمال می‌شود که در زمان اجرا جایگزین شده‌اند.
+            Panel[] cards = { _headerPanel, _networkCard, _usersCard, _trafficHeader, _composeCard };
+            foreach (Panel panel in cards)
             {
-                panel.EndColor = _dark ? Color.FromArgb(8, 29, 28) : Color.FromArgb(232, 246, 239);
-                panel.BorderColor = _dark ? Color.FromArgb(27, 104, 82) : Color.FromArgb(160, 211, 187);
+                ModernCardPanel modernCard = panel as ModernCardPanel;
+                if (modernCard != null)
+                {
+                    modernCard.EndColor = _dark ? Color.FromArgb(8, 29, 28) : Color.FromArgb(232, 246, 239);
+                    modernCard.BorderColor = _dark ? Color.FromArgb(27, 104, 82) : Color.FromArgb(160, 211, 187);
+                }
             }
-            _rootPanel.BottomColor = _dark ? Color.FromArgb(4, 35, 32) : Color.FromArgb(222, 241, 232);
-            _tabs.SelectedTop = _dark ? Color.FromArgb(18, 166, 119) : Color.FromArgb(16, 185, 129);
-            _tabs.SelectedBottom = _dark ? Color.FromArgb(5, 108, 82) : Color.FromArgb(5, 150, 105);
-            _tabs.IdleTop = _dark ? Color.FromArgb(15, 43, 40) : Color.FromArgb(225, 241, 232);
-            _tabs.IdleBottom = _dark ? Color.FromArgb(9, 31, 29) : Color.FromArgb(211, 232, 221);
-            _logs.RowColor = _networkMessages.RowColor = _messages.RowColor = _dark ? Color.FromArgb(8, 26, 25) : Color.FromArgb(250, 253, 251);
-            _logs.AlternateRowColor = _networkMessages.AlternateRowColor = _messages.AlternateRowColor = _dark ? Color.FromArgb(10, 31, 29) : Color.FromArgb(239, 248, 243);
-            _logs.SelectedRowColor = _networkMessages.SelectedRowColor = _messages.SelectedRowColor = _dark ? Color.FromArgb(15, 72, 57) : Color.FromArgb(187, 247, 208);
-            _logs.AccentColor = _networkMessages.AccentColor = _messages.AccentColor = Color.FromArgb(52, 211, 153);
+
+            EmeraldBackgroundPanel modernBackground = _rootPanel as EmeraldBackgroundPanel;
+            if (modernBackground != null)
+                modernBackground.BottomColor = _dark ? Color.FromArgb(4, 35, 32) : Color.FromArgb(222, 241, 232);
+
+            ModernTabControl modernTabs = _tabs as ModernTabControl;
+            if (modernTabs != null)
+            {
+                modernTabs.SelectedTop = _dark ? Color.FromArgb(18, 166, 119) : Color.FromArgb(16, 185, 129);
+                modernTabs.SelectedBottom = _dark ? Color.FromArgb(5, 108, 82) : Color.FromArgb(5, 150, 105);
+                modernTabs.IdleTop = _dark ? Color.FromArgb(15, 43, 40) : Color.FromArgb(225, 241, 232);
+                modernTabs.IdleBottom = _dark ? Color.FromArgb(9, 31, 29) : Color.FromArgb(211, 232, 221);
+            }
+
+            // پالت ردیف‌ها و نشانگرهای فهرست در هر دو تم حفظ می‌شود.
+            ModernListBox[] modernLists = {
+                _logs as ModernListBox,
+                _networkMessages as ModernListBox,
+                _messages as ModernListBox
+            };
+            foreach (ModernListBox list in modernLists)
+            {
+                if (list == null) continue;
+                list.RowColor = _dark ? Color.FromArgb(8, 26, 25) : Color.FromArgb(250, 253, 251);
+                list.AlternateRowColor = _dark ? Color.FromArgb(10, 31, 29) : Color.FromArgb(239, 248, 243);
+                list.SelectedRowColor = _dark ? Color.FromArgb(15, 72, 57) : Color.FromArgb(187, 247, 208);
+                list.AccentColor = Color.FromArgb(52, 211, 153);
+            }
             _titleLabel.ForeColor = _dark ? Color.FromArgb(110, 231, 183) : Color.FromArgb(5, 150, 105);
             _readyBadge.BackColor = _dark ? Color.FromArgb(6, 78, 59) : Color.FromArgb(209, 250, 229);
             _readyBadge.ForeColor = _dark ? Color.FromArgb(167, 243, 208) : Color.FromArgb(6, 78, 59);
@@ -173,8 +377,12 @@ namespace ChatpApp.Server
             // دکمه اصلی براساس وضعیت سرور رنگ می‌گیرد.
             _start.BackColor = _running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);
             _start.ForeColor = Color.White;
-            _start.HoverColor = _running ? Color.FromArgb(4, 120, 87) : Color.FromArgb(5, 150, 105);
-            _start.PressedColor = _running ? Color.FromArgb(3, 95, 70) : Color.FromArgb(4, 110, 80);
+            ModernButton modernStartButton = _start as ModernButton;
+            if (modernStartButton != null)
+            {
+                modernStartButton.HoverColor = _running ? Color.FromArgb(4, 120, 87) : Color.FromArgb(5, 150, 105);
+                modernStartButton.PressedColor = _running ? Color.FromArgb(3, 95, 70) : Color.FromArgb(4, 110, 80);
+            }
             _unpin.BackColor = _dark ? Color.FromArgb(71, 85, 105) : Color.FromArgb(203, 213, 225);
             _unpin.ForeColor = _dark ? Color.White : Color.FromArgb(30, 41, 59);
             _count.ForeColor = Color.FromArgb(52, 211, 153);
@@ -584,8 +792,12 @@ namespace ChatpApp.Server
                 // نشانگر سربرگ هم‌زمان با وضعیت واقعی سوکت تغییر می‌کند.
                 _readyBadge.Text = running ? "●  سرور در حال اجرا" : "●  سرور آماده به اجرا";
                 _readyBadge.BackColor = running ? Color.FromArgb(5, 120, 87) : (_dark ? Color.FromArgb(6, 78, 59) : Color.FromArgb(209, 250, 229));
-                _start.HoverColor = running ? Color.FromArgb(4, 120, 87) : Color.FromArgb(5, 150, 105);
-                _start.PressedColor = running ? Color.FromArgb(3, 95, 70) : Color.FromArgb(4, 110, 80);
+                ModernButton modernStartButton = _start as ModernButton;
+                if (modernStartButton != null)
+                {
+                    modernStartButton.HoverColor = running ? Color.FromArgb(4, 120, 87) : Color.FromArgb(5, 150, 105);
+                    modernStartButton.PressedColor = running ? Color.FromArgb(3, 95, 70) : Color.FromArgb(4, 110, 80);
+                }
                 _start.Enabled = true;
                 _start.Text = running ? "■  توقف سوکت" : "▶  اجرای سوکت";
                 _start.BackColor = running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);

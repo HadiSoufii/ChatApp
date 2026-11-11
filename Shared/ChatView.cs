@@ -627,7 +627,8 @@ namespace ChatpApp.Shared
         // هنگام رسم باید هم جابه‌جایی افقی حباب و هم جابه‌جایی عمودی اسکرول/انیمیشن اعمال شود.
         private static Rectangle OffsetBubbleRect(Rectangle rect, Rectangle bubble, int offsetY)
         {
-            rect.Offset(bubble.X, offsetY);
+            // Bubble.Y هم بخشی از مختصات واقعی کارت است؛ آن را نیز به مختصات داخلی اضافه می‌کنیم.
+            rect.Offset(bubble.X, bubble.Y + offsetY);
             return rect;
         }
 

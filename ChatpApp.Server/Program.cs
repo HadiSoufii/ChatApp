@@ -5,9 +5,11 @@ namespace ChatpApp.Server
 {
     internal static class Program
     {
-        // اجرای پنل مدیریت؛ توقف سوکت از داخل فرم انجام می‌شود و برنامه بسته نمی‌شود.
+        /// <summary>
+        /// The main entry point for the application.
+        /// </summary>
         [STAThread]
-        private static void Main()
+        static void Main()
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

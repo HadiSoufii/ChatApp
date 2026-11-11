@@ -1,583 +1,368 @@
-﻿using System.Drawing;
-using System.Windows.Forms;
-
-namespace ChatpApp.Server
+﻿namespace ChatpApp.Server
 {
-    // ساختار تمام کنترل‌های پنل مدیریت در این فایل است تا فرم در محیط Design قابل مشاهده و ویرایش باشد.
-    public partial class ChatServer
+    partial class ChatServer
     {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
         private System.ComponentModel.IContainer components = null;
 
-        // منابع و اجزای احتمالی فرم هنگام بسته‌شدن آزاد می‌شوند.
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && components != null) components.Dispose();
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
             base.Dispose(disposing);
         }
 
-        private Panel _rootPanel;
-        private TableLayoutPanel _rootLayout;
-        private Panel _headerPanel;
-        private Label _titleLabel;
-        private Label _brandIcon;
-        private Label _subtitleLabel;
-        private Button _theme;
-        private Label _readyBadge;
-        private SplitContainer _mainSplit;
-        private TableLayoutPanel _leftLayout;
-        private Panel _networkCard;
-        private Label _networkTitle;
-        private Label _portLabel;
-        private Control _port;
-        private Label _hostLabel;
-        private Control _host;
-        private Label _hostInfoLabel;
-        private Button _start;
-        private Panel _usersCard;
-        private Label _usersTitle;
-        private Label _count;
-        private DataGridView _users;
-        private DataGridViewTextBoxColumn _avatarColumn;
-        private DataGridViewTextBoxColumn _nameColumn;
-        private DataGridViewTextBoxColumn _ipColumn;
-        private DataGridViewTextBoxColumn _joinedColumn;
-        private DataGridViewTextBoxColumn _durationColumn;
-        private Button _disconnect;
-        private Label _status;
-        private TableLayoutPanel _rightLayout;
-        private Panel _trafficHeader;
-        private Label _trafficTitle;
-        private Label _traffic;
-        private TabControl _tabs;
-        private TabPage _logsTab;
-        private TabPage _networkMessagesTab;
-        private TabPage _messagesTab;
-        private ListBox _logs;
-        private ListBox _networkMessages;
-        private ListBox _messages;
-        private Panel _composeCard;
-        private Label _composeTitle;
-        private TextBox _announcement;
-        private Button _send;
-        private Button _pin;
-        private Button _unpin;
-        private Label _pinned;
+        #region Windows Form Designer generated code
 
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
         private void InitializeComponent()
         {
-            this._rootPanel = new Panel();
-            this._rootLayout = new TableLayoutPanel();
-            this._headerPanel = new Panel();
-            this._titleLabel = new Label();
-            this._brandIcon = new Label();
-            this._subtitleLabel = new Label();
-            this._theme = new Button();
-            this._readyBadge = new Label();
-            this._mainSplit = new SplitContainer();
-            this._leftLayout = new TableLayoutPanel();
-            this._networkCard = new Panel();
-            this._networkTitle = new Label();
-            this._portLabel = new Label();
-            this._port = new TextBox();
-            this._hostLabel = new Label();
-            this._host = new TextBox();
-            this._hostInfoLabel = new Label();
-            this._start = new Button();
-            this._usersCard = new Panel();
-            this._usersTitle = new Label();
-            this._count = new Label();
-            this._users = new DataGridView();
-            this._avatarColumn = new DataGridViewTextBoxColumn();
-            this._nameColumn = new DataGridViewTextBoxColumn();
-            this._ipColumn = new DataGridViewTextBoxColumn();
-            this._joinedColumn = new DataGridViewTextBoxColumn();
-            this._durationColumn = new DataGridViewTextBoxColumn();
-            this._disconnect = new Button();
-            this._status = new Label();
-            this._rightLayout = new TableLayoutPanel();
-            this._trafficHeader = new Panel();
-            this._trafficTitle = new Label();
-            this._traffic = new Label();
-            this._tabs = new TabControl();
-            this._logsTab = new TabPage();
-            this._networkMessagesTab = new TabPage();
-            this._messagesTab = new TabPage();
-            this._logs = new ListBox();
-            this._networkMessages = new ListBox();
-            this._messages = new ListBox();
-            this._composeCard = new Panel();
-            this._composeTitle = new Label();
-            this._announcement = new TextBox();
-            this._send = new Button();
-            this._pin = new Button();
-            this._unpin = new Button();
-            this._pinned = new Label();
-            this._rootPanel.SuspendLayout();
-            this._rootLayout.SuspendLayout();
-            this._headerPanel.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this._mainSplit)).BeginInit();
-            this._mainSplit.Panel1.SuspendLayout();
-            this._mainSplit.Panel2.SuspendLayout();
-            this._mainSplit.SuspendLayout();
-            this._leftLayout.SuspendLayout();
-            this._networkCard.SuspendLayout();
-            this._usersCard.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this._users)).BeginInit();
-            this._rightLayout.SuspendLayout();
-            this._trafficHeader.SuspendLayout();
-            this._tabs.SuspendLayout();
-            this._logsTab.SuspendLayout();
-            this._messagesTab.SuspendLayout();
-            this._composeCard.SuspendLayout();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ChatServer));
+            this.header = new ChatpApp.Shared.GradientPanel();
+            this.lblTitle = new ChatpApp.Shared.ThemedLabel();
+            this.lblSub = new ChatpApp.Shared.ThemedLabel();
+            this.pill = new ChatpApp.Shared.StatusPill();
+            this.chipOnline = new ChatpApp.Shared.StatChip();
+            this.chipMessages = new ChatpApp.Shared.StatChip();
+            this.chipUptime = new ChatpApp.Shared.StatChip();
+            this.toggle = new ChatpApp.Shared.ThemeToggle();
+            this.settingsCard = new ChatpApp.Shared.RoundedPanel();
+            this.lblIpCap = new ChatpApp.Shared.ThemedLabel();
+            this.txtIp = new ChatpApp.Shared.ModernTextBox();
+            this.lblPortCap = new ChatpApp.Shared.ThemedLabel();
+            this.txtPort = new ChatpApp.Shared.ModernTextBox();
+            this.lblWelCap = new ChatpApp.Shared.ThemedLabel();
+            this.txtWelcome = new ChatpApp.Shared.ModernTextBox();
+            this.btnStart = new ChatpApp.Shared.ModernButton();
+            this.btnStop = new ChatpApp.Shared.ModernButton();
+            this.lblNet = new ChatpApp.Shared.ThemedLabel();
+            this.btnTabChat = new ChatpApp.Shared.ModernButton();
+            this.btnTabLog = new ChatpApp.Shared.ModernButton();
+            this.chat = new ChatpApp.Shared.ChatPanel();
+            this.logCard = new ChatpApp.Shared.RoundedPanel();
+            this.rtbLog = new System.Windows.Forms.RichTextBox();
+            this.usersCard = new ChatpApp.Shared.RoundedPanel();
+            this.lblUsers = new ChatpApp.Shared.ThemedLabel();
+            this.users = new ChatpApp.Shared.UserListView();
+            this.header.SuspendLayout();
+            this.settingsCard.SuspendLayout();
+            this.logCard.SuspendLayout();
+            this.usersCard.SuspendLayout();
             this.SuspendLayout();
-            // تنظیمات پنجره اصلی مدیریت سرور
-            this.AutoScaleDimensions = new SizeF(8F, 17F);
-            this.AutoScaleMode = AutoScaleMode.Font;
-            this.BackColor = Color.FromArgb(5, 18, 18);
-            this.ClientSize = new Size(1232, 800);
-            this.Controls.Add(this._rootPanel);
-            this.Font = new Font("Segoe UI", 9.5F);
-            this.MinimumSize = new Size(1040, 680);
+            // 
+            // header
+            // 
+            this.header.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.header.Location = new System.Drawing.Point(0, 0);
+            this.header.Name = "header";
+            this.header.Size = new System.Drawing.Size(1260, 80);
+            this.header.Controls.Add(this.lblTitle);
+            this.header.Controls.Add(this.lblSub);
+            this.header.Controls.Add(this.pill);
+            this.header.Controls.Add(this.chipOnline);
+            this.header.Controls.Add(this.chipMessages);
+            this.header.Controls.Add(this.chipUptime);
+            this.header.Controls.Add(this.toggle);
+            // 
+            // lblTitle
+            // 
+            this.lblTitle.Font = new System.Drawing.Font("Segoe UI", 18F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblTitle.Location = new System.Drawing.Point(920, 12);
+            this.lblTitle.Name = "lblTitle";
+            this.lblTitle.Role = ChatpApp.Shared.LabelRole.OnAccent;
+            this.lblTitle.Size = new System.Drawing.Size(320, 32);
+            this.lblTitle.Text = "سرور چت‌روم";
+            this.lblTitle.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // lblSub
+            // 
+            this.lblSub.Font = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblSub.Location = new System.Drawing.Point(920, 46);
+            this.lblSub.Name = "lblSub";
+            this.lblSub.Role = ChatpApp.Shared.LabelRole.OnAccent;
+            this.lblSub.Size = new System.Drawing.Size(320, 22);
+            this.lblSub.Text = "پنل مدیریت و نظارت بر گفتگو";
+            this.lblSub.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // pill
+            // 
+            this.pill.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.pill.Location = new System.Drawing.Point(770, 24);
+            this.pill.Name = "pill";
+            this.pill.Size = new System.Drawing.Size(140, 32);
+            // 
+            // chipOnline
+            // 
+            this.chipOnline.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.chipOnline.Location = new System.Drawing.Point(630, 15);
+            this.chipOnline.Name = "chipOnline";
+            this.chipOnline.Size = new System.Drawing.Size(130, 50);
+            this.chipOnline.Title = "کاربران آنلاین";
+            this.chipOnline.Value = "۰";
+            // 
+            // chipMessages
+            // 
+            this.chipMessages.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.chipMessages.Location = new System.Drawing.Point(490, 15);
+            this.chipMessages.Name = "chipMessages";
+            this.chipMessages.Size = new System.Drawing.Size(130, 50);
+            this.chipMessages.Title = "کل پیام‌ها";
+            this.chipMessages.Value = "۰";
+            // 
+            // chipUptime
+            // 
+            this.chipUptime.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.chipUptime.Location = new System.Drawing.Point(350, 15);
+            this.chipUptime.Name = "chipUptime";
+            this.chipUptime.Size = new System.Drawing.Size(130, 50);
+            this.chipUptime.Title = "مدت فعالیت سرور";
+            this.chipUptime.Value = "۰";
+            // 
+            // toggle
+            // 
+            this.toggle.Location = new System.Drawing.Point(20, 25);
+            this.toggle.Name = "toggle";
+            this.toggle.Size = new System.Drawing.Size(60, 30);
+            this.toggle.TransparentBg = true;
+            // 
+            // settingsCard
+            // 
+            this.settingsCard.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.settingsCard.Location = new System.Drawing.Point(16, 94);
+            this.settingsCard.Name = "settingsCard";
+            this.settingsCard.Size = new System.Drawing.Size(1228, 124);
+            this.settingsCard.Controls.Add(this.lblIpCap);
+            this.settingsCard.Controls.Add(this.txtIp);
+            this.settingsCard.Controls.Add(this.lblPortCap);
+            this.settingsCard.Controls.Add(this.txtPort);
+            this.settingsCard.Controls.Add(this.lblWelCap);
+            this.settingsCard.Controls.Add(this.txtWelcome);
+            this.settingsCard.Controls.Add(this.btnStart);
+            this.settingsCard.Controls.Add(this.btnStop);
+            this.settingsCard.Controls.Add(this.lblNet);
+            // 
+            // lblIpCap
+            // 
+            this.lblIpCap.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblIpCap.Location = new System.Drawing.Point(988, 12);
+            this.lblIpCap.Name = "lblIpCap";
+            this.lblIpCap.Role = ChatpApp.Shared.LabelRole.Muted;
+            this.lblIpCap.Size = new System.Drawing.Size(220, 20);
+            this.lblIpCap.Text = "آی‌پی سرور (خصوصی)";
+            this.lblIpCap.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // txtIp
+            // 
+            this.txtIp.Location = new System.Drawing.Point(988, 34);
+            this.txtIp.Name = "txtIp";
+            this.txtIp.Size = new System.Drawing.Size(220, 44);
+            this.txtIp.Rtl = false;
+            this.txtIp.Text = "127.0.0.1";
+            this.txtIp.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // lblPortCap
+            // 
+            this.lblPortCap.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblPortCap.Location = new System.Drawing.Point(866, 12);
+            this.lblPortCap.Name = "lblPortCap";
+            this.lblPortCap.Role = ChatpApp.Shared.LabelRole.Muted;
+            this.lblPortCap.Size = new System.Drawing.Size(110, 20);
+            this.lblPortCap.Text = "پورت";
+            this.lblPortCap.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // txtPort
+            // 
+            this.txtPort.Location = new System.Drawing.Point(866, 34);
+            this.txtPort.Name = "txtPort";
+            this.txtPort.Size = new System.Drawing.Size(110, 44);
+            this.txtPort.Rtl = false;
+            this.txtPort.Text = "3001";
+            this.txtPort.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // lblWelCap
+            // 
+            this.lblWelCap.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblWelCap.Location = new System.Drawing.Point(306, 12);
+            this.lblWelCap.Name = "lblWelCap";
+            this.lblWelCap.Role = ChatpApp.Shared.LabelRole.Muted;
+            this.lblWelCap.Size = new System.Drawing.Size(548, 20);
+            this.lblWelCap.Text = "متن خوشامدگویی به کاربران تازه‌وارد";
+            this.lblWelCap.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // txtWelcome
+            // 
+            this.txtWelcome.Location = new System.Drawing.Point(306, 34);
+            this.txtWelcome.Name = "txtWelcome";
+            this.txtWelcome.Size = new System.Drawing.Size(548, 44);
+            this.txtWelcome.Text = "به چت‌روم خوش آمدی! اینجا می‌توانی با بقیه گفتگو کنی، پیام‌ها را پاسخ بدهی و واکنش نشان بدهی. لطفا مودب باش و از گفتگو لذت ببر.";
+            this.txtWelcome.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // btnStart
+            // 
+            this.btnStart.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnStart.Location = new System.Drawing.Point(160, 34);
+            this.btnStart.Name = "btnStart";
+            this.btnStart.Size = new System.Drawing.Size(130, 44);
+            this.btnStart.Text = "روشن کردن سرور";
+            this.btnStart.Kind = ChatpApp.Shared.BtnKind.Success;
+            this.btnStart.Radius = 14;
+            // 
+            // btnStop
+            // 
+            this.btnStop.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnStop.Location = new System.Drawing.Point(20, 34);
+            this.btnStop.Name = "btnStop";
+            this.btnStop.Size = new System.Drawing.Size(130, 44);
+            this.btnStop.Text = "توقف سرور";
+            this.btnStop.Kind = ChatpApp.Shared.BtnKind.Danger;
+            this.btnStop.Radius = 14;
+            // 
+            // lblNet
+            // 
+            this.lblNet.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblNet.Location = new System.Drawing.Point(20, 88);
+            this.lblNet.Name = "lblNet";
+            this.lblNet.Role = ChatpApp.Shared.LabelRole.Muted;
+            this.lblNet.Size = new System.Drawing.Size(1188, 26);
+            this.lblNet.Text = "آی‌پی‌های شبکه این دستگاه: ...";
+            this.lblNet.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // btnTabChat
+            // 
+            this.btnTabChat.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnTabChat.Location = new System.Drawing.Point(710, 230);
+            this.btnTabChat.Name = "btnTabChat";
+            this.btnTabChat.Size = new System.Drawing.Size(140, 40);
+            this.btnTabChat.Text = "گفتگوی زنده";
+            this.btnTabChat.Radius = 14;
+            this.btnTabChat.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // btnTabLog
+            // 
+            this.btnTabLog.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnTabLog.Location = new System.Drawing.Point(562, 230);
+            this.btnTabLog.Name = "btnTabLog";
+            this.btnTabLog.Size = new System.Drawing.Size(140, 40);
+            this.btnTabLog.Text = "لاگ شبکه";
+            this.btnTabLog.Kind = ChatpApp.Shared.BtnKind.Secondary;
+            this.btnTabLog.Radius = 14;
+            this.btnTabLog.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            // 
+            // chat
+            // 
+            this.chat.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.chat.Location = new System.Drawing.Point(16, 278);
+            this.chat.Name = "chat";
+            this.chat.Size = new System.Drawing.Size(834, 506);
+            // 
+            // logCard
+            // 
+            this.logCard.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.logCard.Location = new System.Drawing.Point(16, 278);
+            this.logCard.Name = "logCard";
+            this.logCard.Size = new System.Drawing.Size(834, 506);
+            this.logCard.Visible = false;
+            this.logCard.Controls.Add(this.rtbLog);
+            // 
+            // rtbLog
+            // 
+            this.rtbLog.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.rtbLog.BackColor = System.Drawing.Color.FromArgb(255, 255, 255);
+            this.rtbLog.BorderStyle = System.Windows.Forms.BorderStyle.None;
+            this.rtbLog.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.rtbLog.Location = new System.Drawing.Point(14, 14);
+            this.rtbLog.Name = "rtbLog";
+            this.rtbLog.ReadOnly = true;
+            this.rtbLog.RightToLeft = System.Windows.Forms.RightToLeft.Yes;
+            this.rtbLog.Size = new System.Drawing.Size(806, 478);
+            this.rtbLog.Text = "";
+            // 
+            // usersCard
+            // 
+            this.usersCard.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
+            this.usersCard.Location = new System.Drawing.Point(864, 230);
+            this.usersCard.Name = "usersCard";
+            this.usersCard.Size = new System.Drawing.Size(380, 554);
+            this.usersCard.Controls.Add(this.lblUsers);
+            this.usersCard.Controls.Add(this.users);
+            // 
+            // lblUsers
+            // 
+            this.lblUsers.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblUsers.Location = new System.Drawing.Point(18, 14);
+            this.lblUsers.Name = "lblUsers";
+            this.lblUsers.Role = ChatpApp.Shared.LabelRole.Text;
+            this.lblUsers.Size = new System.Drawing.Size(344, 26);
+            this.lblUsers.Text = "کاربران آنلاین (۰)";
+            // 
+            // users
+            // 
+            this.users.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            this.users.Location = new System.Drawing.Point(6, 50);
+            this.users.Name = "users";
+            this.users.Size = new System.Drawing.Size(368, 496);
+            // 
+            // ChatServer
+            // 
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
+            this.BackColor = System.Drawing.Color.FromArgb(240, 242, 249);
+            this.ClientSize = new System.Drawing.Size(1260, 800);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.MinimumSize = new System.Drawing.Size(1120, 720);
             this.Name = "ChatServer";
-            this.RightToLeft = RightToLeft.Yes;
-            this.RightToLeftLayout = false;
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.Text = "Nexa Chat | مرکز کنترل سرور";
-            // قاب اصلی دارای سربرگ ثابت و فضای کاری منعطف است.
-            this._rootPanel.Dock = DockStyle.Fill;
-            this._rootPanel.Padding = new Padding(12);
-            this._rootPanel.BackColor = Color.FromArgb(5, 18, 18);
-            this._rootPanel.Controls.Add(this._rootLayout);
-            this._rootLayout.Dock = DockStyle.Fill;
-            this._rootLayout.ColumnCount = 1;
-            this._rootLayout.RowCount = 2;
-            this._rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            this._rootLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88F));
-            this._rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            this._rootLayout.Name = "_rootLayout";
-            // سربرگ پنل مدیریت
-            this._headerPanel.Dock = DockStyle.Fill;
-            this._headerPanel.BackColor = Color.FromArgb(10, 32, 31);
-            this._headerPanel.BorderStyle = BorderStyle.None;
-            this._headerPanel.Padding = new Padding(18, 10, 18, 10);
-            this._headerPanel.Name = "_headerPanel";
-            this._headerPanel.Controls.Add(this._readyBadge);
-            this._headerPanel.Controls.Add(this._subtitleLabel);
-            this._headerPanel.Controls.Add(this._titleLabel);
-            this._headerPanel.Controls.Add(this._brandIcon);
-            this._titleLabel.AutoSize = true;
-            this._titleLabel.Font = new Font("Segoe UI", 19F, FontStyle.Bold);
-            this._titleLabel.ForeColor = Color.FromArgb(110, 231, 183);
-            this._titleLabel.Location = new Point(92, 12);
-            this._titleLabel.Name = "_titleLabel";
-            this._titleLabel.Text = "مرکز کنترل سرور  ✦";
-            this._subtitleLabel.AutoSize = true;
-            this._subtitleLabel.Font = new Font("Segoe UI", 9F);
-            this._subtitleLabel.ForeColor = Color.FromArgb(148, 163, 184);
-            this._subtitleLabel.Location = new Point(96, 52);
-            this._subtitleLabel.Name = "_subtitleLabel";
-            this._subtitleLabel.Text = "مدیریت کاربران، اتصال‌ها و پیام‌ها به‌صورت زنده";
-            // نماد برند در قاب زمردی، مشابه آیکون تصویر مرجع.
-            this._brandIcon.Size = new Size(58, 58);
-            this._brandIcon.Location = new Point(20, 14);
-            this._brandIcon.BackColor = Color.FromArgb(5, 91, 72);
-            this._brandIcon.ForeColor = Color.FromArgb(220, 255, 243);
-            this._brandIcon.Font = new Font("Segoe UI Symbol", 25F, FontStyle.Bold);
-            this._brandIcon.Text = "▤";
-            this._brandIcon.TextAlign = ContentAlignment.MiddleCenter;
-            this._brandIcon.Name = "_brandIcon";
-            this._theme.Text = "☀  تغییر پوسته";
-            this._theme.Size = new Size(126, 38);
-            this._theme.FlatStyle = FlatStyle.Flat;
-            this._theme.FlatAppearance.BorderSize = 0;
-            this._theme.BackColor = Color.FromArgb(5, 150, 105);
-            this._theme.ForeColor = Color.White;
-            this._theme.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._theme.Cursor = Cursors.Hand;
-            this._theme.Name = "_theme";
-            this._theme.Location = new Point(1090, 18);
-            this._theme.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            // نشانگر وضعیت آماده‌به‌کار در سربرگ، مشابه نشان سبزرنگ تصویر مرجع.
-            this._readyBadge.AutoSize = false;
-            this._readyBadge.Size = new Size(190, 34);
-            this._readyBadge.Location = new Point(1010, 22);
-            this._readyBadge.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            this._readyBadge.Text = "●  سرور آماده به اجرا";
-            this._readyBadge.TextAlign = ContentAlignment.MiddleCenter;
-            this._readyBadge.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._readyBadge.ForeColor = Color.FromArgb(167, 243, 208);
-            this._readyBadge.BackColor = Color.FromArgb(6, 78, 59);
-            this._readyBadge.Name = "_readyBadge";
-            this._rootLayout.Controls.Add(this._headerPanel, 0, 0);
-            // تقسیم‌بندی فضای کاری به تنظیمات و کاربران در یک سمت و گزارش‌ها در سمت دیگر
-            this._mainSplit.Dock = DockStyle.Fill;
-            this._mainSplit.Name = "_mainSplit";
-            this._mainSplit.Orientation = Orientation.Vertical;
-            // اندازه اولیه را قبل از تنظیم حداقل پنل‌ها تعیین می‌کنیم؛ در غیر این صورت EndInit کنترل هنوز عرض پیش‌فرض ۱۵۰ پیکسل را می‌بیند.
-            this._mainSplit.Size = new Size(1240, 640);
-            this._mainSplit.SplitterDistance = 650;
-            this._mainSplit.Panel1MinSize = 550;
-            this._mainSplit.Panel2MinSize = 420;
-            // فضای گفتگو در سمت چپ و تنظیمات و کاربران در سمت راست قرار می‌گیرند.
-            this._mainSplit.Panel1.Controls.Add(this._rightLayout);
-            this._mainSplit.Panel2.Controls.Add(this._leftLayout);
-            this._rootLayout.Controls.Add(this._mainSplit, 0, 1);
-            // ستون چپ: تنظیمات سرور، جدول کاربران و وضعیت اجرا
-            this._leftLayout.Dock = DockStyle.Fill;
-            this._leftLayout.ColumnCount = 1;
-            this._leftLayout.RowCount = 3;
-            this._leftLayout.Padding = new Padding(0, 8, 8, 0);
-            this._leftLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            this._leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 190F));
-            this._leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            this._leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
-            this._leftLayout.Name = "_leftLayout";
-            // کارت تنظیمات راه‌اندازی شبکه
-            this._networkCard.Dock = DockStyle.Fill;
-            this._networkCard.BackColor = Color.FromArgb(10, 32, 31);
-            this._networkCard.BorderStyle = BorderStyle.None;
-            this._networkCard.Padding = new Padding(14);
-            this._networkCard.Margin = new Padding(0, 0, 0, 10);
-            this._networkCard.Name = "_networkCard";
-            this._networkCard.Controls.Add(this._start);
-            this._networkCard.Controls.Add(this._hostInfoLabel);
-            this._networkCard.Controls.Add(this._host);
-            this._networkCard.Controls.Add(this._hostLabel);
-            this._networkCard.Controls.Add(this._port);
-            this._networkCard.Controls.Add(this._portLabel);
-            this._networkCard.Controls.Add(this._networkTitle);
-            this._networkTitle.AutoSize = true;
-            this._networkTitle.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            this._networkTitle.ForeColor = Color.FromArgb(226, 232, 240);
-            this._networkTitle.Location = new Point(14, 12);
-            this._networkTitle.Name = "_networkTitle";
-            this._networkTitle.Text = "راه‌اندازی شبکه";
-            this._portLabel.AutoSize = true;
-            this._portLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._portLabel.ForeColor = Color.FromArgb(203, 213, 225);
-            this._portLabel.Location = new Point(14, 45);
-            this._portLabel.Name = "_portLabel";
-            this._portLabel.Text = "پورت ارتباطی";
-            this._port.Location = new Point(14, 70);
-            this._port.Size = new Size(145, 40);
-            this._port.Text = "5050";
-            this._port.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            this._port.Name = "_port";
-
-            // ورودی IP در کنار پورت و با مقدار پیش‌فرض تمام رابط‌های IPv4.
-            this._hostLabel.AutoSize = true;
-            this._hostLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._hostLabel.ForeColor = Color.FromArgb(203, 213, 225);
-            this._hostLabel.Location = new Point(178, 45);
-            this._hostLabel.Name = "_hostLabel";
-            this._hostLabel.Text = "آدرس IP سرور";
-            this._host.Location = new Point(178, 70);
-            this._host.Size = new Size(205, 40);
-            this._host.Text = "0.0.0.0";
-            this._host.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            this._host.Name = "_host";
-
-            this._hostInfoLabel.AutoSize = true;
-            this._hostInfoLabel.ForeColor = Color.FromArgb(148, 163, 184);
-            this._hostInfoLabel.Font = new Font("Segoe UI", 8.5F);
-            this._hostInfoLabel.Location = new Point(14, 116);
-            this._hostInfoLabel.Name = "_hostInfoLabel";
-            this._hostInfoLabel.Text = "میزبان: 0.0.0.0  (تمام رابط‌های شبکه)";
-            this._start.Text = "▶  اجرای سوکت";
-            this._start.Size = new Size(410, 43);
-            this._start.FlatStyle = FlatStyle.Flat;
-            this._start.FlatAppearance.BorderSize = 0;
-            this._start.BackColor = Color.FromArgb(16, 185, 129);
-            this._start.ForeColor = Color.White;
-            this._start.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._start.Cursor = Cursors.Hand;
-            this._start.FlatAppearance.MouseOverBackColor = Color.FromArgb(5, 150, 105);
-            this._start.Location = new Point(14, 143);
-            this._start.Name = "_start";
-            this._leftLayout.Controls.Add(this._networkCard, 0, 0);
-            // کارت کاربران آنلاین و اطلاعات شبکه هر کاربر
-            this._usersCard.Dock = DockStyle.Fill;
-            this._usersCard.BackColor = Color.FromArgb(10, 32, 31);
-            this._usersCard.BorderStyle = BorderStyle.None;
-            this._usersCard.Padding = new Padding(12);
-            this._usersCard.Margin = new Padding(0, 0, 0, 8);
-            this._usersCard.Name = "_usersCard";
-            this._usersCard.Controls.Add(this._users);
-            this._usersCard.Controls.Add(this._disconnect);
-            this._usersCard.Controls.Add(this._count);
-            this._usersCard.Controls.Add(this._usersTitle);
-            this._usersTitle.AutoSize = true;
-            this._usersTitle.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            this._usersTitle.ForeColor = Color.FromArgb(226, 232, 240);
-            this._usersTitle.Location = new Point(12, 10);
-            this._usersTitle.Name = "_usersTitle";
-            this._usersTitle.Text = "کاربران آنلاین";
-            this._count.AutoSize = true;
-            this._count.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._count.ForeColor = Color.FromArgb(34, 197, 94);
-            this._count.Location = new Point(180, 15);
-            this._count.Name = "_count";
-            this._count.Text = "۰ کاربر آنلاین";
-            this._users.Dock = DockStyle.None;
-            this._users.Location = new Point(12, 48);
-            this._users.Size = new Size(390, 430);
-            this._users.Margin = new Padding(4);
-            this._users.ReadOnly = true;
-            this._users.AllowUserToAddRows = false;
-            this._users.AllowUserToDeleteRows = false;
-            this._users.AllowUserToResizeRows = false;
-            this._users.RowHeadersVisible = false;
-            this._users.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            this._users.MultiSelect = false;
-            this._users.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            this._users.BorderStyle = BorderStyle.None;
-            this._users.BackgroundColor = Color.FromArgb(7, 25, 24);
-            this._users.GridColor = Color.FromArgb(22, 101, 78);
-            this._users.Font = new Font("Segoe UI", 8.5F);
-            this._users.ColumnHeadersHeight = 38;
-            this._users.RowTemplate.Height = 38;
-            this._users.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
-            this._users.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
-            this._users.DefaultCellStyle.Padding = new Padding(6, 4, 6, 4);
-            this._users.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 5, 6, 5);
-            this._users.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            this._users.Name = "_users";
-            // ستون‌ها کنترل‌های مستقل هستند تا در محیط Designer نیز جداگانه قابل انتخاب و تنظیم باشند.
-            this._avatarColumn.Name = "avatar";
-            this._avatarColumn.HeaderText = "آیکون";
-            this._avatarColumn.FillWeight = 24F;
-            this._nameColumn.Name = "name";
-            this._nameColumn.HeaderText = "نام کاربر";
-            this._nameColumn.FillWeight = 55F;
-            this._ipColumn.Name = "ip";
-            this._ipColumn.HeaderText = "IP";
-            this._ipColumn.FillWeight = 66F;
-            this._joinedColumn.Name = "joined";
-            this._joinedColumn.HeaderText = "زمان ورود";
-            this._joinedColumn.FillWeight = 56F;
-            this._durationColumn.Name = "time";
-            this._durationColumn.HeaderText = "مدت حضور";
-            this._durationColumn.FillWeight = 58F;
-            this._users.Columns.AddRange(new DataGridViewColumn[] {
-                this._avatarColumn, this._nameColumn, this._ipColumn, this._joinedColumn, this._durationColumn
-            });
-            this._users.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(13, 65, 51);
-            this._users.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(226, 232, 240);
-            this._users.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(13, 65, 51);
-            this._users.DefaultCellStyle.BackColor = Color.FromArgb(10, 32, 31);
-            this._users.DefaultCellStyle.ForeColor = Color.FromArgb(226, 232, 240);
-            this._users.DefaultCellStyle.SelectionBackColor = Color.FromArgb(5, 150, 105);
-            this._users.DefaultCellStyle.SelectionForeColor = Color.White;
-            this._users.EnableHeadersVisualStyles = false;
-            this._disconnect.Text = "قطع اتصال کاربر انتخاب‌شده";
-            this._disconnect.Size = new Size(250, 36);
-            this._disconnect.FlatStyle = FlatStyle.Flat;
-            this._disconnect.FlatAppearance.BorderSize = 0;
-            this._disconnect.BackColor = Color.FromArgb(5, 150, 105);
-            this._disconnect.ForeColor = Color.White;
-            this._disconnect.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._disconnect.Cursor = Cursors.Hand;
-            this._disconnect.Location = new Point(12, 0);
-            this._disconnect.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            this._disconnect.Name = "_disconnect";
-            this._leftLayout.Controls.Add(this._usersCard, 0, 1);
-            // برچسب وضعیت سرور در پایین ستون
-            this._status.Dock = DockStyle.Fill;
-            this._status.TextAlign = ContentAlignment.MiddleCenter;
-            this._status.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
-            this._status.ForeColor = Color.FromArgb(239, 100, 100);
-            this._status.Name = "_status";
-            this._status.Text = "● سرور متوقف است";
-            this._leftLayout.Controls.Add(this._status, 0, 2);
-            // ستون راست: آمار، گزارش رویدادها، پیام‌های مدیریتی و ارسال اعلان
-            this._rightLayout.Dock = DockStyle.Fill;
-            this._rightLayout.ColumnCount = 1;
-            this._rightLayout.RowCount = 3;
-            this._rightLayout.Padding = new Padding(8, 8, 0, 0);
-            this._rightLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            this._rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52F));
-            this._rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            this._rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
-            this._rightLayout.Name = "_rightLayout";
-            this._trafficHeader.Dock = DockStyle.Fill;
-            this._trafficHeader.BackColor = Color.FromArgb(10, 32, 31);
-            this._trafficHeader.BorderStyle = BorderStyle.None;
-            this._trafficHeader.Padding = new Padding(12, 8, 12, 8);
-            this._trafficHeader.Name = "_trafficHeader";
-            this._trafficHeader.Controls.Add(this._traffic);
-            this._trafficHeader.Controls.Add(this._trafficTitle);
-            this._trafficTitle.AutoSize = true;
-            this._trafficTitle.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            this._trafficTitle.ForeColor = Color.FromArgb(226, 232, 240);
-            this._trafficTitle.Location = new Point(12, 14);
-            this._trafficTitle.Name = "_trafficTitle";
-            this._trafficTitle.Text = "جریان زنده سرور";
-            this._traffic.AutoSize = true;
-            this._traffic.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._traffic.ForeColor = Color.FromArgb(96, 165, 250);
-            this._traffic.Location = new Point(260, 18);
-            this._traffic.Name = "_traffic";
-            this._traffic.Text = "پیام‌ها: ۰  |  اتصال‌های فعال: ۰";
-            this._rightLayout.Controls.Add(this._trafficHeader, 0, 0);
-            this._tabs.Dock = DockStyle.Fill;
-            this._tabs.Name = "_tabs";
-            this._tabs.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._tabs.Controls.Add(this._logsTab);
-            this._tabs.Controls.Add(this._networkMessagesTab);
-            this._tabs.Controls.Add(this._messagesTab);
-            this._tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
-            this._tabs.SizeMode = TabSizeMode.Fixed;
-            this._tabs.ItemSize = new Size(150, 34);
-            this._logsTab.Text = "رویدادهای شبکه";
-            this._logsTab.Name = "_logsTab";
-            this._logsTab.BackColor = Color.FromArgb(10, 32, 31);
-            this._logsTab.Controls.Add(this._logs);
-            // تب میانی پیام‌های دریافتی را جدا از گزارش رخدادها نمایش می‌دهد.
-            this._networkMessagesTab.Text = "پیام‌های قابل نمایش شبکه";
-            this._networkMessagesTab.Name = "_networkMessagesTab";
-            this._networkMessagesTab.BackColor = Color.FromArgb(10, 32, 31);
-            this._networkMessagesTab.Controls.Add(this._networkMessages);
-            this._networkMessages.Dock = DockStyle.Fill;
-            this._networkMessages.IntegralHeight = false;
-            this._networkMessages.ItemHeight = 36;
-            this._networkMessages.RightToLeft = RightToLeft.Yes;
-            this._networkMessages.Font = new Font("Segoe UI", 9.5F);
-            this._networkMessages.BackColor = Color.FromArgb(7, 25, 24);
-            this._networkMessages.ForeColor = Color.FromArgb(203, 213, 225);
-            this._networkMessages.BorderStyle = BorderStyle.None;
-            this._networkMessages.ForeColor = Color.FromArgb(215, 238, 229);
-            this._networkMessages.Name = "_networkMessages";
-            this._messagesTab.Text = "پیام‌های قابل مدیریت";
-            this._messagesTab.Name = "_messagesTab";
-            this._messagesTab.BackColor = Color.FromArgb(10, 32, 31);
-            this._messagesTab.Controls.Add(this._messages);
-            this._logs.Dock = DockStyle.Fill;
-            this._logs.IntegralHeight = false;
-            this._logs.ItemHeight = 36;
-            this._logs.RightToLeft = RightToLeft.Yes;
-            this._logs.Font = new Font("Consolas", 9F);
-            this._logs.BackColor = Color.FromArgb(7, 25, 24);
-            this._logs.ForeColor = Color.FromArgb(203, 213, 225);
-            this._logs.BorderStyle = BorderStyle.None;
-            this._logs.Items.AddRange(new object[] { "10:42:11  •  سرویس آماده شروع است.", "10:42:15  •  در انتظار اتصال کاربران..." });
-            this._logs.ForeColor = Color.FromArgb(215, 238, 229);
-            this._logs.Name = "_logs";
-            this._messages.Dock = DockStyle.Fill;
-            this._messages.IntegralHeight = false;
-            this._messages.ItemHeight = 36;
-            this._messages.RightToLeft = RightToLeft.Yes;
-            this._messages.Font = new Font("Segoe UI", 9.5F);
-            this._messages.BackColor = Color.FromArgb(7, 25, 24);
-            this._messages.ForeColor = Color.FromArgb(203, 213, 225);
-            this._messages.BorderStyle = BorderStyle.None;
-            this._messages.Items.AddRange(new object[] { "پیام نمونه برای انتخاب و سنجاق کردن" });
-            this._messages.ForeColor = Color.FromArgb(215, 238, 229);
-            this._messages.Name = "_messages";
-            this._rightLayout.Controls.Add(this._tabs, 0, 1);
-            // کارت ابزارهای مدیریتی برای انتشار پیام و سنجاق کردن پیام انتخاب‌شده
-            this._composeCard.Dock = DockStyle.Fill;
-            this._composeCard.BackColor = Color.FromArgb(10, 32, 31);
-            this._composeCard.BorderStyle = BorderStyle.None;
-            this._composeCard.Padding = new Padding(14);
-            this._composeCard.Margin = new Padding(0, 10, 0, 0);
-            this._composeCard.Name = "_composeCard";
-            this._composeCard.Controls.Add(this._pinned);
-            this._composeCard.Controls.Add(this._unpin);
-            this._composeCard.Controls.Add(this._theme);
-            this._composeCard.Controls.Add(this._pin);
-            this._composeCard.Controls.Add(this._send);
-            this._composeCard.Controls.Add(this._composeTitle);
-            this._composeTitle.AutoSize = true;
-            this._composeTitle.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-            this._composeTitle.ForeColor = Color.FromArgb(226, 232, 240);
-            this._composeTitle.Location = new Point(14, 10);
-            this._composeTitle.Name = "_composeTitle";
-            this._composeTitle.Text = "ابزارهای مدیریتی و پیام همگانی";
-            this._send.Text = "ارسال به همه";
-            this._send.Size = new Size(112, 36);
-            this._send.FlatStyle = FlatStyle.Flat;
-            this._send.FlatAppearance.BorderSize = 0;
-            this._send.BackColor = Color.FromArgb(5, 150, 105);
-            this._send.ForeColor = Color.White;
-            this._send.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._send.Cursor = Cursors.Hand;
-            this._send.Location = new Point(14, 42);
-            this._send.Name = "_send";
-            this._pin.Text = "سنجاق پیام انتخاب‌شده";
-            this._pin.Size = new Size(176, 36);
-            this._pin.FlatStyle = FlatStyle.Flat;
-            this._pin.FlatAppearance.BorderSize = 0;
-            this._pin.BackColor = Color.FromArgb(5, 150, 105);
-            this._pin.ForeColor = Color.White;
-            this._pin.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._pin.Cursor = Cursors.Hand;
-            this._pin.Location = new Point(136, 42);
-            this._pin.Name = "_pin";
-            this._unpin.Text = "لغو سنجاق";
-            this._unpin.Size = new Size(112, 36);
-            this._unpin.FlatStyle = FlatStyle.Flat;
-            this._unpin.FlatAppearance.BorderSize = 1;
-            this._unpin.FlatAppearance.BorderColor = Color.FromArgb(71, 85, 105);
-            this._unpin.BackColor = Color.FromArgb(51, 65, 85);
-            this._unpin.ForeColor = Color.White;
-            this._unpin.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._unpin.Cursor = Cursors.Hand;
-            this._unpin.Location = new Point(320, 42);
-            this._unpin.Name = "_unpin";
-            // متن پیام همگانی در یک پنجره کوچک و هماهنگ با تم دریافت می‌شود تا نوار ابزار خلوت بماند.
-            this._announcement.Visible = false;
-            this._announcement.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            this._announcement.Location = new Point(14, 91);
-            this._announcement.Size = new Size(700, 30);
-            this._announcement.Font = new Font("Segoe UI", 10F);
-            this._announcement.BorderStyle = BorderStyle.FixedSingle;
-            this._announcement.Name = "_announcement";
-            this._announcement.Text = "پیام اطلاع‌رسانی سرور را بنویسید...";
-            this._pinned.AutoSize = true;
-            this._pinned.ForeColor = Color.FromArgb(96, 165, 250);
-            this._pinned.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
-            this._pinned.Location = new Point(470, 56);
-            this._pinned.Name = "_pinned";
-            this._pinned.Text = "پیامی سنجاق نشده است";
-            this._pinned.Visible = false;
-            // کلید تغییر تم در نوار ابزار پایین قرار می‌گیرد تا سربرگ مانند تصویر مرجع خلوت باشد.
-            this._theme.Text = "⚙  تغییر تم";
-            this._theme.Size = new Size(112, 36);
-            this._theme.FlatStyle = FlatStyle.Flat;
-            this._theme.FlatAppearance.BorderSize = 1;
-            this._theme.FlatAppearance.BorderColor = Color.FromArgb(16, 185, 129);
-            this._theme.BackColor = Color.FromArgb(13, 56, 49);
-            this._theme.ForeColor = Color.White;
-            this._theme.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this._theme.Cursor = Cursors.Hand;
-            this._theme.Location = new Point(444, 42);
-            this._theme.Name = "_theme";
-            this._rightLayout.Controls.Add(this._composeCard, 0, 2);
-            this._composeCard.ResumeLayout(false);
-            this._composeCard.PerformLayout();
-            this._messagesTab.ResumeLayout(false);
-            this._networkMessagesTab.ResumeLayout(false);
-            this._logsTab.ResumeLayout(false);
-            this._tabs.ResumeLayout(false);
-            this._trafficHeader.ResumeLayout(false);
-            this._trafficHeader.PerformLayout();
-            this._rightLayout.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this._users)).EndInit();
-            this._usersCard.ResumeLayout(false);
-            this._usersCard.PerformLayout();
-            this._networkCard.ResumeLayout(false);
-            this._networkCard.PerformLayout();
-            this._leftLayout.ResumeLayout(false);
-            this._mainSplit.Panel1.ResumeLayout(false);
-            this._mainSplit.Panel2.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this._mainSplit)).EndInit();
-            this._mainSplit.ResumeLayout(false);
-            this._headerPanel.ResumeLayout(false);
-            this._headerPanel.PerformLayout();
-            this._rootLayout.ResumeLayout(false);
-            this._rootPanel.ResumeLayout(false);
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.Text = "سرور چت‌روم";
+            this.Controls.Add(this.header);
+            this.Controls.Add(this.settingsCard);
+            this.Controls.Add(this.btnTabChat);
+            this.Controls.Add(this.btnTabLog);
+            this.Controls.Add(this.chat);
+            this.Controls.Add(this.logCard);
+            this.Controls.Add(this.usersCard);
+            this.header.ResumeLayout(false);
+            this.settingsCard.ResumeLayout(false);
+            this.logCard.ResumeLayout(false);
+            this.usersCard.ResumeLayout(false);
             this.ResumeLayout(false);
         }
 
+        #endregion
+
+        private ChatpApp.Shared.GradientPanel header;
+        private ChatpApp.Shared.ThemedLabel lblTitle;
+        private ChatpApp.Shared.ThemedLabel lblSub;
+        private ChatpApp.Shared.StatusPill pill;
+        private ChatpApp.Shared.StatChip chipOnline;
+        private ChatpApp.Shared.StatChip chipMessages;
+        private ChatpApp.Shared.StatChip chipUptime;
+        private ChatpApp.Shared.ThemeToggle toggle;
+        private ChatpApp.Shared.RoundedPanel settingsCard;
+        private ChatpApp.Shared.ThemedLabel lblIpCap;
+        private ChatpApp.Shared.ModernTextBox txtIp;
+        private ChatpApp.Shared.ThemedLabel lblPortCap;
+        private ChatpApp.Shared.ModernTextBox txtPort;
+        private ChatpApp.Shared.ThemedLabel lblWelCap;
+        private ChatpApp.Shared.ModernTextBox txtWelcome;
+        private ChatpApp.Shared.ModernButton btnStart;
+        private ChatpApp.Shared.ModernButton btnStop;
+        private ChatpApp.Shared.ThemedLabel lblNet;
+        private ChatpApp.Shared.ModernButton btnTabChat;
+        private ChatpApp.Shared.ModernButton btnTabLog;
+        private ChatpApp.Shared.ChatPanel chat;
+        private ChatpApp.Shared.RoundedPanel logCard;
+        private System.Windows.Forms.RichTextBox rtbLog;
+        private ChatpApp.Shared.RoundedPanel usersCard;
+        private ChatpApp.Shared.ThemedLabel lblUsers;
+        private ChatpApp.Shared.UserListView users;
     }
 }

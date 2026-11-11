@@ -1,817 +1,811 @@
-﻿using ChatpApp.Protocol;
-using System;
-using System.Collections.Concurrent;
+﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Drawing;
-using System.Linq;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Windows.Forms;
+using ChatpApp.Shared;
+using WinTimer = System.Windows.Forms.Timer;
 
 namespace ChatpApp.Server
 {
-    // هر اتصال یک سوکت، جریان شبکه و قفل ارسال مستقل دارد تا ارسال هم‌زمان بسته‌ها با هم تداخل نکند.
-    internal sealed class ClientSession
-    {
-        public Guid Id; public TcpClient Client; public NetworkStream Stream; public readonly object WriteLock = new object();
-        public string UserName; public string Avatar; public string IpAddress; public DateTime ConnectedAt;
-    }
-
-    // شناسه پیام در آیتم فهرست نگهداری می‌شود تا مدیر بتواند همان پیام را سنجاق کند.
-    internal sealed class ServerMessageItem
-    {
-        public string Id; public string User; public string Text;
-        public override string ToString() { return User + "  |  " + (Text ?? "").Replace("\r", " ").Replace("\n", " "); }
-    }
-
+    /// <summary>
+    /// فرم اصلی سرور چت
+    /// سرور برای هر کلاینت یک ترید جدا می‌سازد (پس چند کاربر همزمان پشتیبانی می‌شوند)
+    /// تاریخچه پیام‌ها، واکنش‌ها، پیام‌های سنجاق شده و وضعیت خوانده شدن پیام‌ها در سرور نگهداری می‌شود
+    /// </summary>
     public partial class ChatServer : Form
     {
-        private readonly ConcurrentDictionary<Guid, ClientSession> _clients = new ConcurrentDictionary<Guid, ClientSession>();
-        private readonly List<ChatMessageInfo> _history = new List<ChatMessageInfo>();
-        private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _reactions = new Dictionary<string, Dictionary<string, HashSet<string>>>();
-        private readonly HashSet<string> _readMessages = new HashSet<string>();
-        private readonly object _sync = new object();
-        private TcpListener _listener; private Thread _acceptThread; private volatile bool _running;
-        private string _pinnedId; private bool _dark = true;
-        private System.Windows.Forms.Timer _timer;
+        // ==================================================================================
+        // مدل‌ها و وضعیت سرور
+        // ==================================================================================
+
+        /// <summary>
+        /// اطلاعات یک کاربر متصل
+        /// </summary>
+        private class ClientSession
+        {
+            public string Name = "";
+            public int Avatar;
+            public ChatConnection Conn;
+            public string Ip = "";
+            public int Port;
+            public DateTime ConnectedAt;
+            public int Messages;
+            public volatile bool Ready;      // بعد از ارسال خوشامد و تاریخچه true می‌شود (قبل از آن بسته‌های همگانی برایش ارسال نمی‌شود)
+            public volatile bool Kicked;     // توسط سرور قطع شده؟
+        }
+
+        private Socket listener;
+        private volatile bool running;
+        private readonly object stateLock = new object();            // قفل همه داده‌های مشترک زیر
+        private readonly List<ClientSession> sessions = new List<ClientSession>();
+        private readonly List<ChatMessageInfo> history = new List<ChatMessageInfo>();
+        private readonly Dictionary<long, ChatMessageInfo> byId = new Dictionary<long, ChatMessageInfo>();
+        private readonly List<long> pins = new List<long>();        // شناسه پیام‌های سنجاق شده (جدیدترین اول)
+        private long nextId;
+        private int totalMessages;
+        private DateTime startedAt;
+        private volatile string welcomeText = "";
+
+        // ==================================================================================
+        // کنترل‌ها: در فایل ChatServer.Designer.cs تعریف شده‌اند و در طراح فرم دیده می‌شوند
+        // ==================================================================================
+
+        private readonly WinTimer statsTimer = new WinTimer();
 
         public ChatServer()
         {
-            // فایل Designer فقط از کنترل‌های استاندارد WinForms استفاده می‌کند تا Rider بتواند سطح طراحی را بارگذاری کند.
             InitializeComponent();
+            SetupBehavior();
 
-            // فقط هنگام اجرای برنامه، کنترل‌های استاندارد با نسخه‌های سفارشی Emerald جایگزین می‌شوند.
-            bool designTime = LicenseManager.UsageMode == LicenseUsageMode.Designtime;
-            if (!designTime)
-                UpgradeModernControls();
+            Theme.Changed += OnThemeChanged;
+            ApplyTheme();
 
-            // رویدادها پس از جایگزینی کنترل‌ها متصل می‌شوند تا به نمونه درست اشاره کنند.
-            WireUiEvents();
-            if (!designTime)
-            {
-                _logs.Items.Clear();
-                _messages.Items.Clear();
-                Shown += delegate
-                {
-                    SetState(false);
-                    RefreshUsers();
-                    // پس از تکمیل چیدمان واقعی فرم، فاصله جداکننده را با اندازه نهایی تنظیم می‌کنیم.
-                    SetSafeSplitterDistance();
-                };
-                FormClosing += OnClosing;
-                // این تایمر مدت آنلاین بودن و تعداد اتصال‌ها را در پنل سرور تازه‌سازی می‌کند.
-                _timer = new System.Windows.Forms.Timer { Interval = 1000 };
-                _timer.Tick += delegate { RefreshUsers(); };
-                _timer.Start();
-            }
+            SetRunningUi(false);
+            ShowTab(true);
+            ShowNetworkInfo();
+
+            // هر ثانیه آمار هدر به‌روز می‌شود
+            statsTimer.Interval = 1000;
+            statsTimer.Tick += delegate { UpdateStats(); };
+            statsTimer.Start();
+            UpdateStats();
+        }
+
+        // ==================================================================================
+        // تنظیمات رفتاری فرم (آنچه در طراح فرم ذخیره نمی‌شود)
+        // ==================================================================================
+
+        private void SetupBehavior()
+        {
+            DoubleBuffered = true;
+
+            // حالت مدیر: سرور می‌تواند هر پیامی را حذف و سنجاق کند
+            users.Detailed = true;
+            users.KickClicked += KickUser;
+            chat.MyName = ChatConst.ServerName;
+            chat.AdminMode = true;
+
+            // متن خوشامدگویی: هر تغییر در کادر، بلافاصله برای کاربران تازه‌وارد اعمال می‌شود
+            txtWelcome.Inner.TextChanged += delegate { welcomeText = txtWelcome.Text.Trim(); };
+            welcomeText = txtWelcome.Text.Trim();
+
+            // دکمه‌ها
+            btnStart.Click += delegate { StartServer(); };
+            btnStop.Click += delegate { StopServer("سرور توسط مدیر متوقف شد."); };
+            btnTabChat.Click += delegate { ShowTab(true); };
+            btnTabLog.Click += delegate { ShowTab(false); };
+
+            // رویدادهای پنل چت
+            chat.SendRequested += ServerSend;
+            chat.EditSubmitted += ServerEdit;
+            chat.DeleteRequested += delegate(ChatMessageInfo m) { DeleteMessage(m.Id, ChatConst.ServerName, true); };
+            chat.ReactRequested += delegate(ChatMessageInfo m, string emoji) { ToggleReaction(ChatConst.ServerName, m.Id, emoji); };
+            chat.PinToggleRequested += delegate(ChatMessageInfo m) { TogglePin(m.Id); };
+            chat.UnpinRequested += delegate(long id) { TogglePin(id); };
+        }
+
+        private void ApplyTheme()
+        {
+            BackColor = Theme.Bg;
+            rtbLog.BackColor = Theme.Surface;
+            rtbLog.ForeColor = Theme.Text;
+            ShowTab(chat.Visible);
+            Invalidate(true);
+        }
+
+        private void OnThemeChanged(object sender, EventArgs e)
+        {
             ApplyTheme();
         }
 
-        #region جایگزینی کنترل‌های استاندارد با کنترل‌های مدرن در زمان اجرا
-
-        // ویژگی‌های اصلی کنترل قبلی را به نمونه سفارشی منتقل می‌کند.
-        private void CopyControlSettings(Control source, Control target)
+        // نمایش تب چت یا لاگ؛ دکمه تب فعال رنگی و دیگری ساده است
+        private void ShowTab(bool chatTab)
         {
-            target.Name = source.Name;
-            target.Text = source.Text;
-            target.Location = source.Location;
-            target.Size = source.Size;
-            target.Dock = source.Dock;
-            target.Anchor = source.Anchor;
-            target.Margin = source.Margin;
-            target.Padding = source.Padding;
-            target.MinimumSize = source.MinimumSize;
-            target.MaximumSize = source.MaximumSize;
-            target.AutoSize = source.AutoSize;
-            target.BackColor = source.BackColor;
-            target.ForeColor = source.ForeColor;
-            target.Font = source.Font;
-            target.RightToLeft = source.RightToLeft;
-            target.Enabled = source.Enabled;
-            target.Visible = source.Visible;
-            target.TabIndex = source.TabIndex;
-            target.TabStop = source.TabStop;
-            target.Cursor = source.Cursor;
-            target.Tag = source.Tag;
+            chat.Visible = chatTab;
+            logCard.Visible = !chatTab;
+            btnTabChat.Kind = chatTab ? BtnKind.Primary : BtnKind.Secondary;
+            btnTabLog.Kind = chatTab ? BtnKind.Secondary : BtnKind.Primary;
+            btnTabChat.Invalidate();
+            btnTabLog.Invalidate();
         }
 
-        // کنترل جدید را در همان جایگاه کنترل قبلی قرار می‌دهد و خانه جدول چیدمان را حفظ می‌کند.
-        private void ReplaceControlInParent(Control source, Control target)
+        // اطلاعات شبکه این دستگاه (آی‌پی‌های IPv4)
+        private void ShowNetworkInfo()
         {
-            Control parent = source.Parent;
-            if (parent == null)
-                throw new InvalidOperationException("کنترل برای جایگزینی باید والد داشته باشد.");
-
-            int childIndex = parent.Controls.GetChildIndex(source);
-            TableLayoutPanel table = parent as TableLayoutPanel;
-            TableLayoutPanelCellPosition cell = table == null
-                ? new TableLayoutPanelCellPosition(-1, -1)
-                : table.GetCellPosition(source);
-
-            parent.Controls.Add(target);
-
-            if (table != null)
+            try
             {
-                table.SetColumnSpan(target, table.GetColumnSpan(source));
-                table.SetRowSpan(target, table.GetRowSpan(source));
-                table.SetCellPosition(target, cell);
-            }
-
-            parent.Controls.SetChildIndex(target, childIndex);
-            parent.Controls.Remove(source);
-            source.Dispose();
-        }
-
-        // پنل سفارشی را جایگزین می‌کند و همه کنترل‌های فرزند پنل قبلی را نگه می‌دارد.
-        private T ReplacePanel<T>(Panel source) where T : Panel, new()
-        {
-            T target = new T();
-            CopyControlSettings(source, target);
-
-            Control[] children = source.Controls.Cast<Control>().ToArray();
-            source.Controls.Clear();
-            target.Controls.AddRange(children);
-
-            ReplaceControlInParent(source, target);
-            return target;
-        }
-
-        // دکمه مدرن با حفظ متن، اندازه، فونت و رنگ پایه ساخته می‌شود.
-        private ModernButton ReplaceButton(Button source)
-        {
-            ModernButton target = new ModernButton();
-            CopyControlSettings(source, target);
-            target.HoverColor = Color.FromArgb(5, 150, 105);
-            target.PressedColor = Color.FromArgb(4, 105, 78);
-            target.BorderColor = Color.FromArgb(61, 203, 153);
-            ReplaceControlInParent(source, target);
-            return target;
-        }
-
-        // ورودی سفارشی را با انتقال متن و تنظیمات TextBox قبلی می‌سازد.
-        private ModernTextBox ReplaceTextBox(Control source)
-        {
-            TextBox oldTextBox = source as TextBox;
-            if (oldTextBox == null)
-                throw new InvalidOperationException("ورودی اولیه باید از نوع TextBox باشد.");
-
-            ModernTextBox target = new ModernTextBox();
-            CopyControlSettings(source, target);
-            target.TextAlign = oldTextBox.TextAlign;
-            target.MaxLength = oldTextBox.MaxLength;
-            target.ReadOnly = oldTextBox.ReadOnly;
-            target.Height = Math.Max(38, source.Height);
-
-            ReplaceControlInParent(source, target);
-            return target;
-        }
-
-        // آیتم‌ها و وضعیت انتخاب فهرست قبلی به فهرست سفارشی منتقل می‌شوند.
-        private ModernListBox ReplaceListBox(ListBox source)
-        {
-            ModernListBox target = new ModernListBox();
-            CopyControlSettings(source, target);
-            target.SelectionMode = source.SelectionMode;
-            target.HorizontalScrollbar = source.HorizontalScrollbar;
-            target.ScrollAlwaysVisible = source.ScrollAlwaysVisible;
-            target.Sorted = source.Sorted;
-            target.ItemHeight = 36;
-
-            foreach (object item in source.Items)
-                target.Items.Add(item);
-
-            if (source.SelectedIndex >= 0 && source.SelectedIndex < target.Items.Count)
-                target.SelectedIndex = source.SelectedIndex;
-
-            if (target.Items.Count > 0)
-                target.TopIndex = Math.Max(0, Math.Min(source.TopIndex, target.Items.Count - 1));
-
-            ReplaceControlInParent(source, target);
-            return target;
-        }
-
-        // صفحه‌های تب قبلی بدون حذف محتوا به کنترل تب سفارشی منتقل می‌شوند.
-        private ModernTabControl ReplaceTabControl(TabControl source)
-        {
-            ModernTabControl target = new ModernTabControl();
-            CopyControlSettings(source, target);
-            target.Alignment = source.Alignment;
-            target.Multiline = source.Multiline;
-            target.ShowToolTips = source.ShowToolTips;
-            target.HotTrack = source.HotTrack;
-
-            int selectedIndex = source.SelectedIndex;
-            TabPage[] pages = source.TabPages.Cast<TabPage>().ToArray();
-
-            foreach (TabPage page in pages)
-                source.TabPages.Remove(page);
-
-            target.TabPages.AddRange(pages);
-
-            if (target.TabPages.Count > 0)
-                target.SelectedIndex = Math.Max(0, Math.Min(selectedIndex, target.TabPages.Count - 1));
-
-            ReplaceControlInParent(source, target);
-            return target;
-        }
-
-        // این متد فقط در زمان اجرا فراخوانی می‌شود؛ Designer همچنان کنترل‌های استاندارد را می‌بیند.
-        private void UpgradeModernControls()
-        {
-            _rootPanel = ReplacePanel<EmeraldBackgroundPanel>(_rootPanel);
-            _headerPanel = ReplacePanel<ModernCardPanel>(_headerPanel);
-            _networkCard = ReplacePanel<ModernCardPanel>(_networkCard);
-            _usersCard = ReplacePanel<ModernCardPanel>(_usersCard);
-            _trafficHeader = ReplacePanel<ModernCardPanel>(_trafficHeader);
-            _composeCard = ReplacePanel<ModernCardPanel>(_composeCard);
-
-            _theme = ReplaceButton(_theme);
-            _start = ReplaceButton(_start);
-            _disconnect = ReplaceButton(_disconnect);
-            _send = ReplaceButton(_send);
-            _pin = ReplaceButton(_pin);
-            _unpin = ReplaceButton(_unpin);
-
-            _port = ReplaceTextBox(_port);
-            _host = ReplaceTextBox(_host);
-
-            _tabs = ReplaceTabControl(_tabs);
-            _logs = ReplaceListBox(_logs);
-            _networkMessages = ReplaceListBox(_networkMessages);
-            _messages = ReplaceListBox(_messages);
-        }
-
-        #endregion
-
-        #region اتصال رویدادهای رابط کاربری
-        // در این بخش فقط رفتار دکمه‌ها و رویدادهای فرم تعریف شده است؛ چیدمان در Designer قرار دارد.
-        private void WireUiEvents()
-        {
-            _theme.Click += delegate { _dark = !_dark; ApplyTheme(); };
-            // یک دکمه، وضعیت واقعی Listener را کنترل می‌کند.
-            _start.Click += ToggleServer;
-            _disconnect.Click += DisconnectUser;
-            _send.Click += SendAnnouncement;
-            _pin.Click += PinSelected;
-            _unpin.Click += delegate { SetPinned(null); };
-            // اندازه جدول و دکمه قطع اتصال با اندازه کارت کاربران هماهنگ می‌شود.
-            _usersCard.Resize += UsersCard_Resize;
-            UsersCard_Resize(_usersCard, EventArgs.Empty);
-        }
-
-        private void UsersCard_Resize(object sender, EventArgs e)
-        {
-            if (_usersCard == null || _users == null || _disconnect == null) return;
-            _users.Width = Math.Max(100, _usersCard.ClientSize.Width - 24);
-            _users.Height = Math.Max(80, _usersCard.ClientSize.Height - 98);
-            _disconnect.Top = Math.Max(0, _usersCard.ClientSize.Height - 47);
-            _disconnect.Width = Math.Max(100, _usersCard.ClientSize.Width - 24);
-        }
-
-        // این متد پس از تکمیل Layout، اندازه و فاصله SplitContainer را متناسب با فضای واقعی تنظیم می‌کند.
-        private void SetSafeSplitterDistance()
-        {
-            // تا قبل از ساخته‌شدن Handle، اندازه نهایی کنترل قابل اتکا نیست.
-            if (_mainSplit == null || !_mainSplit.IsHandleCreated)
-                return;
-
-            int availableWidth = _mainSplit.ClientSize.Width;
-            int splitterWidth = _mainSplit.SplitterWidth;
-
-            // در عرض‌های بسیار کوچک، تنظیم فاصله را به زمان مناسب‌تری موکول می‌کنیم.
-            if (availableWidth <= splitterWidth)
-                return;
-
-            // حداقل عرض مطلوب دو پنل مدیریت سرور.
-            // پنل اول سمت چپ، فضای جریان پیام‌ها را می‌گیرد و پنل دوم سمت راست تنظیمات را نشان می‌دهد.
-            int panel1Minimum = 550;
-            int panel2Minimum = 420;
-
-            // اگر فضای واقعی کافی نبود، حداقل‌ها را متناسب با عرض موجود کوچک می‌کنیم.
-            int availableForPanels = availableWidth - splitterWidth;
-            int requiredWidth = panel1Minimum + panel2Minimum;
-            if (requiredWidth > availableForPanels)
-            {
-                double scale = availableForPanels / (double)requiredWidth;
-                panel1Minimum = (int)Math.Floor(panel1Minimum * scale);
-                panel2Minimum = availableForPanels - panel1Minimum;
-            }
-
-            // ابتدا محدودیت‌های قبلی را موقتاً آزاد می‌کنیم تا مقدار جدید بدون تعارض اعمال شود.
-            _mainSplit.Panel1MinSize = 0;
-            _mainSplit.Panel2MinSize = 0;
-
-            // فاصله پیشنهادی پنل اول را داخل بازه مجاز قرار می‌دهیم.
-            int maximumDistance = availableWidth - panel2Minimum - splitterWidth;
-            // پنل پیام‌ها در سمت چپ حدود ۵۶ درصد عرض فرم را می‌گیرد.
-            int desiredDistance = (int)(availableWidth * 0.56);
-            int safeDistance = Math.Max(panel1Minimum, Math.Min(desiredDistance, maximumDistance));
-            _mainSplit.SplitterDistance = safeDistance;
-
-            // پس از تنظیم فاصله معتبر، حداقل عرض نهایی پنل‌ها را اعمال می‌کنیم.
-            _mainSplit.Panel1MinSize = panel1Minimum;
-            _mainSplit.Panel2MinSize = panel2Minimum;
-        }
-
-        #region تنظیم ظاهر و رنگ‌بندی فرم
-        // رنگ‌ها به‌صورت مرکزی اعمال می‌شوند تا کل پنل سرور بین دو تم هماهنگ تغییر کند.
-        private void ApplyTheme()
-        {
-            // پالت Emerald Dark با پس‌زمینه عمیق و تاکید زمردی.
-            Color back = _dark ? Color.FromArgb(7, 17, 17) : Color.FromArgb(240, 248, 245);
-            Color card = _dark ? Color.FromArgb(13, 31, 30) : Color.White;
-            Color fore = _dark ? Color.FromArgb(226, 245, 239) : Color.FromArgb(24, 48, 43);
-            BackColor = back; ForeColor = fore; ThemeControls(this, card, fore);
-            _rootPanel.BackColor = back;
-            _headerPanel.BackColor = card;
-            _networkCard.BackColor = card;
-            _usersCard.BackColor = card;
-            _trafficHeader.BackColor = card;
-            _composeCard.BackColor = card;
-            // تنظیمات اختصاصی فقط روی کنترل‌هایی اعمال می‌شود که در زمان اجرا جایگزین شده‌اند.
-            Panel[] cards = { _headerPanel, _networkCard, _usersCard, _trafficHeader, _composeCard };
-            foreach (Panel panel in cards)
-            {
-                ModernCardPanel modernCard = panel as ModernCardPanel;
-                if (modernCard != null)
+                List<string> ips = new List<string>();
+                foreach (IPAddress a in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
                 {
-                    modernCard.EndColor = _dark ? Color.FromArgb(8, 29, 28) : Color.FromArgb(232, 246, 239);
-                    modernCard.BorderColor = _dark ? Color.FromArgb(27, 104, 82) : Color.FromArgb(160, 211, 187);
+                    if (a.AddressFamily == AddressFamily.InterNetwork) ips.Add(a.ToString());
                 }
+                string list = ips.Count > 0 ? string.Join("  ،  ", ips) : "یافت نشد";
+                SetNotice("آی‌پی‌های شبکه این دستگاه:  " + list + "   —   برای اتصال از دستگاه‌های دیگر، آی‌پی سرور را 0.0.0.0 بگذارید.", false);
             }
-
-            EmeraldBackgroundPanel modernBackground = _rootPanel as EmeraldBackgroundPanel;
-            if (modernBackground != null)
-                modernBackground.BottomColor = _dark ? Color.FromArgb(4, 35, 32) : Color.FromArgb(222, 241, 232);
-
-            ModernTabControl modernTabs = _tabs as ModernTabControl;
-            if (modernTabs != null)
+            catch
             {
-                modernTabs.SelectedTop = _dark ? Color.FromArgb(18, 166, 119) : Color.FromArgb(16, 185, 129);
-                modernTabs.SelectedBottom = _dark ? Color.FromArgb(5, 108, 82) : Color.FromArgb(5, 150, 105);
-                modernTabs.IdleTop = _dark ? Color.FromArgb(15, 43, 40) : Color.FromArgb(225, 241, 232);
-                modernTabs.IdleBottom = _dark ? Color.FromArgb(9, 31, 29) : Color.FromArgb(211, 232, 221);
+                SetNotice("اطلاعات شبکه این دستگاه در دسترس نیست.", false);
             }
-
-            // پالت ردیف‌ها و نشانگرهای فهرست در هر دو تم حفظ می‌شود.
-            ModernListBox[] modernLists = {
-                _logs as ModernListBox,
-                _networkMessages as ModernListBox,
-                _messages as ModernListBox
-            };
-            foreach (ModernListBox list in modernLists)
-            {
-                if (list == null) continue;
-                list.RowColor = _dark ? Color.FromArgb(8, 26, 25) : Color.FromArgb(250, 253, 251);
-                list.AlternateRowColor = _dark ? Color.FromArgb(10, 31, 29) : Color.FromArgb(239, 248, 243);
-                list.SelectedRowColor = _dark ? Color.FromArgb(15, 72, 57) : Color.FromArgb(187, 247, 208);
-                list.AccentColor = Color.FromArgb(52, 211, 153);
-            }
-            _titleLabel.ForeColor = _dark ? Color.FromArgb(110, 231, 183) : Color.FromArgb(5, 150, 105);
-            _readyBadge.BackColor = _dark ? Color.FromArgb(6, 78, 59) : Color.FromArgb(209, 250, 229);
-            _readyBadge.ForeColor = _dark ? Color.FromArgb(167, 243, 208) : Color.FromArgb(6, 78, 59);
-            _theme.BackColor = _dark ? Color.FromArgb(13, 56, 49) : Color.FromArgb(209, 250, 229);
-            _theme.ForeColor = _dark ? Color.White : Color.FromArgb(6, 78, 59);
-            // دکمه اصلی براساس وضعیت سرور رنگ می‌گیرد.
-            _start.BackColor = _running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);
-            _start.ForeColor = Color.White;
-            ModernButton modernStartButton = _start as ModernButton;
-            if (modernStartButton != null)
-            {
-                modernStartButton.HoverColor = _running ? Color.FromArgb(4, 120, 87) : Color.FromArgb(5, 150, 105);
-                modernStartButton.PressedColor = _running ? Color.FromArgb(3, 95, 70) : Color.FromArgb(4, 110, 80);
-            }
-            _unpin.BackColor = _dark ? Color.FromArgb(71, 85, 105) : Color.FromArgb(203, 213, 225);
-            _unpin.ForeColor = _dark ? Color.White : Color.FromArgb(30, 41, 59);
-            _count.ForeColor = Color.FromArgb(52, 211, 153);
-            _traffic.ForeColor = _dark ? Color.FromArgb(110, 231, 183) : Color.FromArgb(5, 150, 105);
-            _host.BackColor = _dark ? Color.FromArgb(8, 28, 27) : Color.FromArgb(248, 252, 250);
-            _port.BackColor = _dark ? Color.FromArgb(8, 28, 27) : Color.FromArgb(248, 252, 250);
-            _host.ForeColor = fore; _port.ForeColor = fore;
-            _hostLabel.ForeColor = fore; _portLabel.ForeColor = fore;
-            if (_users != null) { _users.BackgroundColor = card; _users.DefaultCellStyle.BackColor = card; _users.DefaultCellStyle.ForeColor = fore;
-                _users.ColumnHeadersDefaultCellStyle.BackColor = _dark ? Color.FromArgb(31, 45, 67) : Color.FromArgb(226, 232, 240); _users.ColumnHeadersDefaultCellStyle.ForeColor = fore; _users.EnableHeadersVisualStyles = false; }
         }
-        private void ThemeControls(Control parent, Color card, Color fore)
+
+        // پیام راهنما / خطا زیر کارت تنظیمات
+        private void SetNotice(string text, bool error)
         {
-            foreach (Control c in parent.Controls)
-            {
-                if (c is Button) { c.BackColor = _dark ? Color.FromArgb(5, 120, 87) : Color.FromArgb(16, 185, 129); c.ForeColor = Color.White; }
-                else if (c is TextBox || c is ListBox || c is DataGridView) { c.BackColor = _dark ? Color.FromArgb(8, 23, 22) : Color.FromArgb(248, 252, 250); c.ForeColor = fore; }
-                else { c.BackColor = card; c.ForeColor = fore; }
-                ThemeControls(c, card, fore);
-            }
-            if (_logs != null) _logs.ForeColor = fore; if (_messages != null) _messages.ForeColor = fore;
+            lblNet.Role = error ? LabelRole.Danger : LabelRole.Muted;
+            lblNet.Text = text;
         }
-        #endregion
 
-        #region سرور چنداتصالی و چرخه عمر سوکت‌ها
-        // دکمه واحد براساس وضعیت فعلی سرور، شروع یا توقف سوکت را انجام می‌دهد.
-        private void ToggleServer(object sender, EventArgs e)
+        // ==================================================================================
+        // ابزارهای کمکی
+        // ==================================================================================
+
+        // اجرای کد روی ترید اصلی فرم (از هر ترید دلخواه امن است)
+        private void Ui(Action action)
         {
-            if (_running) StopServer(false);
-            else StartServer();
+            try
+            {
+                if (IsDisposed || !IsHandleCreated) return;
+                BeginInvoke(action);
+            }
+            catch { }
         }
+
+        // نوشتن یک خط در لاگ شبکه (با ساعت و رنگ)
+        private void Log(string text, Color color)
+        {
+            Ui(delegate
+            {
+                rtbLog.SelectionStart = rtbLog.TextLength;
+                rtbLog.SelectionLength = 0;
+                rtbLog.SelectionColor = Theme.Muted;
+                rtbLog.AppendText("[" + Fa.Digits(DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)) + "]  ");
+                rtbLog.SelectionColor = color;
+                rtbLog.AppendText(text + "\n");
+                rtbLog.SelectionStart = rtbLog.TextLength;
+                rtbLog.ScrollToCaret();
+            });
+        }
+
+        private static readonly Color LogGreen = Color.FromArgb(22, 163, 74);
+        private static readonly Color LogRed = Color.FromArgb(220, 38, 38);
+        private static readonly Color LogAmber = Color.FromArgb(217, 119, 6);
+        private static readonly Color LogBlue = Color.FromArgb(37, 99, 235);
+
+        // حالت ظاهری روشن / خاموش بودن سرور
+        private void SetRunningUi(bool on)
+        {
+            btnStart.Enabled = !on;
+            btnStop.Enabled = on;
+            txtIp.Enabled = !on;
+            txtPort.Enabled = !on;
+            pill.SetState(on ? "آنلاین" : "آفلاین", on ? Color.FromArgb(74, 222, 128) : Color.FromArgb(248, 113, 113), on);
+            chat.SetInputEnabled(on, "برای ارسال پیام ابتدا سرور را روشن کنید");
+        }
+
+        // آمار هدر
+        private void UpdateStats()
+        {
+            int online;
+            lock (stateLock) { online = sessions.Count; }
+            chipOnline.Value = Fa.Digits(online);
+            chipMessages.Value = Fa.Digits(totalMessages);
+            chipUptime.Value = running ? Fa.Duration(DateTime.Now - startedAt) : "—";
+        }
+
+        // ==================================================================================
+        // روشن و خاموش کردن سرور
+        // ==================================================================================
 
         private void StartServer()
         {
-            int port;
-            if (!int.TryParse(_port.Text.Trim(), out port) || port < 1 || port > 65535)
-            { MessageBox.Show("شماره پورت باید بین ۱ تا ۶۵۵۳۵ باشد.", "پورت نامعتبر", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (running) return;
 
-            // آدرس واردشده باید IP معتبر باشد؛ 0.0.0.0 یعنی تمام رابط‌های IPv4.
-            IPAddress bindAddress;
-            if (!IPAddress.TryParse(_host.Text.Trim(), out bindAddress))
-            { MessageBox.Show("آدرس IP واردشده معتبر نیست.", "IP نامعتبر", MessageBoxButtons.OK, MessageBoxIcon.Warning); _host.Focus(); return; }
+            IPAddress ip;
+            int portNumber;
+            if (!IPAddress.TryParse(txtIp.Text.Trim(), out ip)) { SetNotice("آی‌پی وارد شده معتبر نیست.", true); return; }
+            if (!int.TryParse(txtPort.Text.Trim(), out portNumber) || portNumber < 1 || portNumber > 65535) { SetNotice("پورت باید عددی بین ۱ تا ۶۵۵۳۵ باشد.", true); return; }
+
+            Socket l = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             try
             {
-                // Listener دقیقاً روی IP و پورتی که مدیر تعیین کرده Bind می‌شود.
-                _listener = new TcpListener(bindAddress, port); _listener.Start(100); _running = true;
-                TcpListener currentListener = _listener;
-                _acceptThread = new Thread(new ThreadStart(delegate { AcceptLoop(currentListener); })) { IsBackground = true, Name = "ChatServer-Accept" }; _acceptThread.Start();
-                SetState(true); Log("سرور روی " + bindAddress + ":" + port + " فعال شد و آماده پذیرش چندین کلاینت است.");
-            }
-            catch (Exception ex) { _running = false; Log("خطا در شروع سرور: " + ex.Message); MessageBox.Show(ex.Message, "خطای شبکه"); }
-        }
-
-        // حلقه پذیرش فقط اتصال جدید را می‌گیرد؛ مدیریت هر کاربر به Thread جداگانه سپرده می‌شود.
-        private void AcceptLoop(TcpListener currentListener)
-        {
-            while (_running && object.ReferenceEquals(_listener, currentListener))
-            {
-                try
-                {
-                    TcpClient tcp = currentListener.AcceptTcpClient(); tcp.NoDelay = true;
-                    var session = new ClientSession { Id = Guid.NewGuid(), Client = tcp, Stream = tcp.GetStream(),
-                        IpAddress = ((IPEndPoint)tcp.Client.RemoteEndPoint).Address.ToString(), ConnectedAt = DateTime.Now };
-                    var worker = new Thread(new ThreadStart(delegate { HandleClient(session); })); worker.IsBackground = true; worker.Start();
-                }
-                catch (ObjectDisposedException) { break; }
-                catch (SocketException ex) { if (_running && object.ReferenceEquals(_listener, currentListener)) Log("خطای پذیرش اتصال: " + ex.Message); else break; }
-                catch (Exception ex) { if (_running && object.ReferenceEquals(_listener, currentListener)) Log("خطای سرور: " + ex.Message); else break; }
-            }
-        }
-
-        private void HandleClient(ClientSession s)
-        {
-            try
-            {
-                ChatPacket join = FrameProtocol.Receive(s.Stream);
-                if (join == null || join.Type != "Join") throw new InvalidOperationException("درخواست ورود معتبر نیست.");
-                string name = (join.UserName ?? "").Trim(); if (name.Length > 24) name = name.Substring(0, 24);
-                name = name.Replace("\r", "").Replace("\n", "");
-                if (name.Length == 0) throw new InvalidOperationException("نام کاربری خالی است.");
-
-                // بررسی نام و ثبت اتصال زیر یک قفل انجام می‌شود تا دو ورود هم‌نام هم‌زمان پذیرفته نشوند.
-                lock (_sync)
-                {
-                    if (_clients.Values.Any(x => string.Equals(x.UserName, name, StringComparison.OrdinalIgnoreCase)))
-                    { FrameProtocol.Send(s.Stream, new ChatPacket { Type = "Error", Text = "این نام کاربری در حال حاضر آنلاین است." }, s.WriteLock); return; }
-                    s.UserName = name; s.Avatar = string.IsNullOrWhiteSpace(join.Avatar) ? "🙂" : join.Avatar;
-                    _clients.TryAdd(s.Id, s);
-                }
-
-                // پیام خوش‌آمدگویی همراه با تاریخچه و کاربران آنلاین برای کلاینت تازه‌وارد ارسال می‌شود.
-                Send(s, new ChatPacket { Type = "Welcome", UserName = s.UserName, Avatar = s.Avatar,
-                    Text = "خوش اومدی " + s.UserName + "! به جمع دوستان پیام‌رسان خوش اومدی 🌟",
-                    Users = UserSnapshot(), History = HistorySnapshot(), IsPinned = !string.IsNullOrEmpty(_pinnedId),
-                    MessageId = _pinnedId, ReplyToText = PinnedText(), ReplyToUser = PinnedUser() });
-                Log(s.Avatar + " " + s.UserName + " از IP " + s.IpAddress + " متصل شد.");
-                Broadcast(new ChatPacket { Type = "System", Text = s.UserName + " به گفتگو پیوست.", UserName = "سیستم", Avatar = "⚙️", TimestampTicks = DateTime.Now.Ticks }, s.Id);
-                BroadcastUsers();
-
-                // هر Thread فقط جریان همان کاربر را می‌خواند و قطع یک کلاینت روی بقیه اثر نمی‌گذارد.
-                while (_running && s.Client.Connected)
-                {
-                    ChatPacket packet = FrameProtocol.Receive(s.Stream); if (packet == null) break;
-                    ProcessPacket(s, packet);
-                }
+                l.Bind(new IPEndPoint(ip, portNumber));
+                l.Listen(100);
             }
             catch (Exception ex)
             {
-                if (_running && _clients.ContainsKey(s.Id) && !string.IsNullOrEmpty(s.UserName) && !(ex is System.IO.IOException) && !(ex is SocketException))
-                    Log("ارتباط " + s.UserName + " با خطا روبه‌رو شد: " + ex.Message);
+                try { l.Close(); } catch { }
+                SetNotice("راه‌اندازی سرور ناموفق بود: " + ex.Message, true);
+                Log("راه‌اندازی سرور ناموفق بود: " + ex.Message, LogRed);
+                return;
             }
-            finally { RemoveClient(s, true); }
+
+            listener = l;
+            running = true;
+            startedAt = DateTime.Now;
+
+            // ترید قبول کردن اتصال کلاینت‌ها
+            Thread t = new Thread(() => AcceptLoop(l));
+            t.IsBackground = true;
+            t.Start();
+
+            SetRunningUi(true);
+            ShowNetworkInfo();
+            Log("سرور روی " + ip + " : " + portNumber + " روشن شد و منتظر اتصال کاربران است.", LogGreen);
+            chat.View.AddSystem("سرور روشن شد", DateTime.Now, 1);
         }
 
-        private void ProcessPacket(ClientSession sender, ChatPacket p)
+        /// <summary>
+        /// توقف سرور: به همه کاربران اطلاع داده می‌شود و سوکت‌ها بسته می‌شوند
+        /// (برنامه بسته نمی‌شود و می‌توان دوباره سرور را روشن کرد)
+        /// </summary>
+        private void StopServer(string reason)
         {
-            switch (p.Type)
+            if (!running) return;
+            running = false;
+
+            Socket l = listener;
+            listener = null;
+            try { if (l != null) l.Close(); } catch { }
+
+            List<ClientSession> snapshot;
+            lock (stateLock)
             {
-                case "Chat": NewMessage(sender, p); break;
-                case "Typing": p.UserName = sender.UserName; Broadcast(p, sender.Id); break;
-                case "ReadReceipt": ReadReceipt(sender, p.MessageId); break;
-                case "Reaction": ToggleReaction(sender, p); break;
-                case "EditMessage": EditMessage(sender, p); break;
-                case "DeleteMessage": DeleteMessage(sender, p); break;
+                snapshot = new List<ClientSession>(sessions);
+                sessions.Clear();
             }
-        }
 
-        private void NewMessage(ClientSession sender, ChatPacket p)
-        {
-            string text = (p.Text ?? "").Trim(); if (text.Length == 0 || text.Length > 4000) return;
-            var m = new ChatMessageInfo { MessageId = string.IsNullOrEmpty(p.MessageId) ? Guid.NewGuid().ToString("N") : p.MessageId,
-                SenderName = sender.UserName, SenderAvatar = sender.Avatar, Text = text, TimestampTicks = DateTime.Now.Ticks,
-                ReplyToId = p.ReplyToId, ReplyToText = p.ReplyToText, ReplyToUser = p.ReplyToUser };
-            Store(m); AddServerMessage(m); Log("پیام جدید از " + sender.UserName + " دریافت شد.");
-            // پیام برای تمام کاربران به‌جز فرستنده پخش می‌شود؛ تعداد ارسال‌های موفق وضعیت دو تیک را تعیین می‌کند.
-            Broadcast(MessagePacket("Message", m), sender.Id);
-            // دریافت تایید از سرور یعنی پیام ثبت شده است؛ حتی اگر فعلاً گیرنده دیگری آنلاین نباشد دو تیک نمایش داده می‌شود.
-            Send(sender, new ChatPacket { Type = "MessageConfirmed", MessageId = m.MessageId, TimestampTicks = m.TimestampTicks, DeliveredCount = 1 });
-            RefreshTraffic();
-        }
-
-        private void EditMessage(ClientSession sender, ChatPacket p)
-        {
-            ChatMessageInfo m;
-            lock (_sync)
+            foreach (ClientSession s in snapshot)
             {
-                m = _history.FirstOrDefault(x => x.MessageId == p.MessageId);
-                if (m == null || m.IsDeleted || m.IsServer || m.SenderName != sender.UserName) return;
-                string text = (p.Text ?? "").Trim(); if (text.Length == 0 || text.Length > 4000) return;
-                m.Text = text; m.IsEdited = true; m.TimestampTicks = DateTime.Now.Ticks;
+                s.Conn.Send(new Packet("BYE", "سرور متوقف شد."));
+                s.Conn.Close();
             }
-            Broadcast(MessagePacket("MessageUpdated", m)); Log(sender.UserName + " پیام خودش را ویرایش کرد.");
+
+            users.SetUsers(new List<UserRow>());
+            lblUsers.Text = "کاربران آنلاین (۰)";
+            SetRunningUi(false);
+            Log(reason + " (" + Fa.Digits(snapshot.Count) + " اتصال بسته شد)", LogAmber);
+            chat.View.AddSystem("سرور متوقف شد", DateTime.Now, 2);
+            chat.SetPins(new List<PinInfo>());
+            ShowNetworkInfo();
         }
 
-        private void DeleteMessage(ClientSession sender, ChatPacket p)
+        // حلقه قبول کردن اتصال‌ها (در یک ترید پس‌زمینه)
+        private void AcceptLoop(Socket l)
         {
-            ChatMessageInfo m;
-            lock (_sync)
+            try
             {
-                m = _history.FirstOrDefault(x => x.MessageId == p.MessageId);
-                if (m == null || m.IsDeleted || m.IsServer || m.SenderName != sender.UserName) return;
-                m.IsDeleted = true; m.Text = "این پیام حذف شده است."; m.IsEdited = false;
-            }
-            Broadcast(MessagePacket("MessageDeleted", m)); Log(sender.UserName + " یکی از پیام‌های خودش را حذف کرد.");
-        }
-
-        private void ToggleReaction(ClientSession sender, ChatPacket p)
-        {
-            if (string.IsNullOrEmpty(p.Reaction)) return;
-            ReactionCounter[] result;
-            lock (_sync)
-            {
-                if (!_history.Any(x => x.MessageId == p.MessageId)) return;
-                Dictionary<string, HashSet<string>> map;
-                if (!_reactions.TryGetValue(p.MessageId, out map)) { map = new Dictionary<string, HashSet<string>>(); _reactions[p.MessageId] = map; }
-                HashSet<string> users;
-                if (!map.TryGetValue(p.Reaction, out users)) { users = new HashSet<string>(StringComparer.OrdinalIgnoreCase); map[p.Reaction] = users; }
-                // کلیک مجدد روی همان ایموجی، واکنش کاربر را حذف می‌کند.
-                if (!users.Add(sender.UserName)) users.Remove(sender.UserName);
-                if (users.Count == 0) map.Remove(p.Reaction);
-                result = ReactionSnapshot(p.MessageId);
-            }
-            Broadcast(new ChatPacket { Type = "ReactionUpdate", MessageId = p.MessageId, Reactions = result });
-        }
-
-        private ReactionCounter[] ReactionSnapshot(string id)
-        {
-            Dictionary<string, HashSet<string>> map;
-            if (!_reactions.TryGetValue(id, out map)) return new ReactionCounter[0];
-            return map.Select(x => new ReactionCounter { Emoji = x.Key, Count = x.Value.Count, Users = x.Value.ToArray() }).ToArray();
-        }
-
-        private void ReadReceipt(ClientSession reader, string id)
-        {
-            string author; bool first;
-            lock (_sync)
-            {
-                var m = _history.FirstOrDefault(x => x.MessageId == id);
-                if (m == null || m.IsServer || m.SenderName == reader.UserName) return;
-                author = m.SenderName; first = _readMessages.Add(id);
-            }
-            // اولین کاربرِ خواننده، وضعیت پیام را برای فرستنده به سه تیک تغییر می‌دهد.
-            if (first)
-            {
-                ClientSession owner = _clients.Values.FirstOrDefault(x => x.UserName == author);
-                if (owner != null) Send(owner, new ChatPacket { Type = "MessageRead", MessageId = id, UserName = reader.UserName });
-            }
-        }
-
-        private void Store(ChatMessageInfo m)
-        {
-            lock (_sync) { _history.Add(m); if (_history.Count > 300) _history.RemoveAt(0); }
-        }
-
-        private ChatPacket MessagePacket(string type, ChatMessageInfo m)
-        {
-            ReactionCounter[] reactions; lock (_sync) reactions = ReactionSnapshot(m.MessageId);
-            return new ChatPacket { Type = type, UserName = m.SenderName, Avatar = m.SenderAvatar, Text = m.Text,
-                MessageId = m.MessageId, ReplyToId = m.ReplyToId, ReplyToText = m.ReplyToText, ReplyToUser = m.ReplyToUser,
-                TimestampTicks = m.TimestampTicks, IsEdited = m.IsEdited, IsDeleted = m.IsDeleted, IsServer = m.IsServer, Reactions = reactions };
-        }
-        #endregion
-
-        #region ارسال، تاریخچه، وضعیت کاربران و کنترل مدیریتی
-        private bool Send(ClientSession target, ChatPacket packet)
-        {
-            try { if (target == null || !target.Client.Connected) return false; FrameProtocol.Send(target.Stream, packet, target.WriteLock); return true; }
-            catch { RemoveClient(target, true); return false; }
-        }
-        private int Broadcast(ChatPacket packet, Guid? except = null)
-        {
-            int count = 0;
-            foreach (ClientSession client in _clients.Values.ToArray())
-                if ((!except.HasValue || client.Id != except.Value) && Send(client, packet)) count++;
-            return count;
-        }
-        private UserInfo[] UserSnapshot()
-        {
-            return _clients.Values.OrderBy(x => x.UserName).Select(x => new UserInfo { UserName = x.UserName, Avatar = x.Avatar,
-                IpAddress = x.IpAddress, ConnectedAtTicks = x.ConnectedAt.Ticks }).ToArray();
-        }
-        private ChatMessageInfo[] HistorySnapshot()
-        {
-            lock (_sync) return _history.Select(x => new ChatMessageInfo { MessageId = x.MessageId, SenderName = x.SenderName,
-                SenderAvatar = x.SenderAvatar, Text = x.Text, TimestampTicks = x.TimestampTicks, ReplyToId = x.ReplyToId,
-                ReplyToText = x.ReplyToText, ReplyToUser = x.ReplyToUser, IsEdited = x.IsEdited, IsDeleted = x.IsDeleted,
-                IsServer = x.IsServer, Reactions = ReactionSnapshot(x.MessageId) }).ToArray();
-        }
-        private void BroadcastUsers()
-        {
-            Broadcast(new ChatPacket { Type = "Users", Users = UserSnapshot() }); RefreshUsers();
-        }
-        private void RemoveClient(ClientSession s, bool announce)
-        {
-            if (s == null) return;
-            ClientSession removed;
-            if (_clients.TryRemove(s.Id, out removed))
-            {
-                try { removed.Client.Close(); } catch { }
-                if (announce && _running && !string.IsNullOrEmpty(removed.UserName))
+                while (running)
                 {
-                    Log("اتصال " + removed.UserName + " قطع شد.");
-                    Broadcast(new ChatPacket { Type = "System", Text = removed.UserName + " از گفتگو خارج شد.", UserName = "سیستم", Avatar = "⚙️", TimestampTicks = DateTime.Now.Ticks });
+                    Socket c = l.Accept();
+                    if (!running || l != listener)
+                    {
+                        try { c.Close(); } catch { }
+                        break;
+                    }
+
+                    c.NoDelay = true;
+                    c.SendTimeout = 4000;
+
+                    // برای هر کلاینت یک ترید جدا
+                    Thread t = new Thread(() => ClientLoop(c));
+                    t.IsBackground = true;
+                    t.Start();
                 }
+            }
+            catch
+            {
+                // با بسته شدن سوکت شنونده، Accept خطا می‌دهد و ترید تمام می‌شود
+            }
+        }
+
+        // ==================================================================================
+        // مدیریت یک کلاینت
+        // ==================================================================================
+
+        private void ClientLoop(Socket c)
+        {
+            ChatConnection conn = new ChatConnection(c);
+            ClientSession me = null;
+
+            try
+            {
+                // اولین بسته باید HELLO باشد (حداکثر ۸ ثانیه صبر می‌کنیم)
+                c.ReceiveTimeout = 8000;
+                Packet hello = conn.ReadPacket();
+                c.ReceiveTimeout = 0;
+                if (hello == null || hello.Type != "HELLO")
+                {
+                    conn.Close();
+                    return;
+                }
+
+                string name = ChatText.CleanName(hello.Arg(0));
+                int avatar = hello.ArgInt(1);
+                if (avatar < 0 || avatar >= ChatConst.AvatarCount) avatar = 0;
+                IPEndPoint ep = (IPEndPoint)c.RemoteEndPoint;
+
+                int onlineCount;
+                lock (stateLock)
+                {
+                    if (!running)
+                    {
+                        conn.Send(new Packet("ERROR", "سرور در حال حاضر خاموش است."));
+                        conn.Close();
+                        return;
+                    }
+
+                    me = new ClientSession();
+                    me.Name = UniqueName(name);
+                    me.Avatar = avatar;
+                    me.Conn = conn;
+                    me.Ip = ep.Address.ToString();
+                    me.Port = ep.Port;
+                    me.ConnectedAt = DateTime.Now;
+                    sessions.Add(me);
+                    onlineCount = sessions.Count;
+                }
+
+                // 1) پیام خوشامدگویی
+                conn.Send(new Packet("WELCOME", me.Name, welcomeText, onlineCount.ToString(CultureInfo.InvariantCulture), ChatConst.ServerName));
+
+                // 2) پیام‌های سنجاق شده و تاریخچه (۴۰ پیام آخر)
+                conn.Send(BuildPinsPacket());
+                List<ChatMessageInfo> recent = new List<ChatMessageInfo>();
+                lock (stateLock)
+                {
+                    int start = Math.Max(0, history.Count - 40);
+                    for (int i = start; i < history.Count; i++)
+                    {
+                        if (!history[i].Deleted) recent.Add(history[i].Clone());
+                    }
+                }
+                foreach (ChatMessageInfo m in recent) conn.Send(ChatText.ToPacket(m, true));
+                conn.Send(new Packet("HISTEND"));
+
+                // 3) از این لحظه کاربر آماده دریافت بسته‌های همگانی است
+                me.Ready = true;
+                Log(me.Name + " متصل شد (آی‌پی " + me.Ip + " ، پورت " + me.Port + ")", LogGreen);
+                BroadcastSystem(me.Name + " وارد چت شد", 1, me);
+                BroadcastUsers();
+                RefreshUsersUi();
+
+                // 4) حلقه دریافت بسته‌های کاربر
+                while (running)
+                {
+                    Packet p = conn.ReadPacket();
+                    if (p == null || p.Type == "BYE") break;
+                    HandleClientPacket(me, p);
+                }
+            }
+            catch
+            {
+                // قطع ناگهانی کاربر (بستن برنامه، قطع شبکه یا kick)
+            }
+
+            RemoveSession(me, conn);
+        }
+
+        // حذف کاربر بعد از قطع اتصال
+        private void RemoveSession(ClientSession me, ChatConnection conn)
+        {
+            conn.Close();
+            if (me == null) return;
+
+            bool removed;
+            lock (stateLock) { removed = sessions.Remove(me); }
+            if (!removed) return;      // قبلا هنگام توقف سرور حذف شده
+
+            Log(me.Name + (me.Kicked ? " توسط مدیر قطع شد." : " قطع اتصال کرد."), me.Kicked ? LogAmber : LogRed);
+            if (me.Ready)
+            {
+                BroadcastSystem(me.Name + (me.Kicked ? " توسط سرور از چت خارج شد" : " از چت خارج شد"), 2, null);
                 BroadcastUsers();
             }
-            else { try { s.Client.Close(); } catch { } }
+            Ui(() => chat.RemoveTyper(me.Name));
+            RefreshUsersUi();
         }
 
-        private void StopServer(bool closing)
+        // نام یکتا (در صورت تکراری بودن یک عدد اضافه می‌شود). فقط داخل lock صدا زده شود
+        private string UniqueName(string name)
         {
-            if (!_running && _listener == null) return;
-            _running = false;
-            // توقف، فقط Listener و سوکت‌های کاربران را می‌بندد و فرم سرور را باز نگه می‌دارد.
-            try { if (_listener != null) _listener.Stop(); } catch { } _listener = null;
-            foreach (ClientSession client in _clients.Values.ToArray())
+            string result = name;
+            int n = 2;
+            while (NameExists(result))
             {
-                try { FrameProtocol.Send(client.Stream, new ChatPacket { Type = "ServerStopped", Text = "ارتباط با سرور توسط مدیر متوقف شد." }, client.WriteLock); } catch { }
-                try { client.Client.Close(); } catch { }
+                result = name + "(" + n + ")";
+                n++;
             }
-            _clients.Clear(); SetState(false); RefreshUsers();
-            Log(closing ? "برنامه سرور در حال بسته‌شدن است." : "سرور متوقف شد؛ پنل مدیریت همچنان فعال است.");
-        }
-
-        private void DisconnectUser(object sender, EventArgs e)
-        {
-            if (_users.SelectedRows.Count == 0) { MessageBox.Show("ابتدا یک کاربر را از فهرست انتخاب کنید."); return; }
-            Guid id = (Guid)_users.SelectedRows[0].Tag; ClientSession selected;
-            if (_clients.TryGetValue(id, out selected))
-            {
-                Send(selected, new ChatPacket { Type = "Kicked", Text = "اتصال شما توسط مدیر سرور قطع شد." });
-                RemoveClient(selected, true);
-            }
-        }
-
-        // پیام مدیر با هویت سرور منتشر می‌شود و از پیام‌های عادی کاربران متمایز است.
-        private void SendAnnouncement(object sender, EventArgs e)
-        {
-            if (!_running) { MessageBox.Show("برای ارسال پیام همگانی ابتدا سوکت را اجرا کنید.", "سرور متوقف است"); return; }
-            // چون ورودی پیام در نوار ابزار تصویر مرجع دیده نمی‌شود، متن پیام در پنجره‌ای جمع‌وجور دریافت می‌شود.
-            string text = PromptAnnouncementText();
-            if (string.IsNullOrWhiteSpace(text)) return;
-            if (text.Length > 4000) { MessageBox.Show("پیام نباید بیشتر از ۴۰۰۰ نویسه باشد."); return; }
-            var m = new ChatMessageInfo { MessageId = Guid.NewGuid().ToString("N"), SenderName = "سرور", SenderAvatar = "🖥️",
-                Text = text, TimestampTicks = DateTime.Now.Ticks, IsServer = true };
-            Store(m); AddServerMessage(m); Broadcast(MessagePacket("Message", m)); Log("پیام مدیریتی برای همه کاربران ارسال شد."); _announcement.Clear();
-        }
-        // پنجره ورودی پیام مدیریتی با همان تم تیره و جهت راست‌به‌چپ ساخته می‌شود.
-        private string PromptAnnouncementText()
-        {
-            Form dialog = new Form();
-            TextBox input = new TextBox();
-            Button accept = new Button();
-            Button cancel = new Button();
-            dialog.Text = "ارسال پیام همگانی";
-            dialog.StartPosition = FormStartPosition.CenterParent;
-            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
-            dialog.MinimizeBox = false; dialog.MaximizeBox = false;
-            dialog.ClientSize = new Size(430, 150);
-            dialog.BackColor = Color.FromArgb(10, 32, 31);
-            dialog.ForeColor = Color.White;
-            dialog.RightToLeft = RightToLeft.Yes;
-            Label caption = new Label { Text = "متن پیام اطلاع‌رسانی را وارد کنید:", AutoSize = true, Location = new Point(18, 16), ForeColor = Color.White };
-            input.Location = new Point(18, 45); input.Size = new Size(394, 30); input.Font = new Font("Segoe UI", 10F);
-            input.Multiline = true; input.Height = 42; input.BackColor = Color.FromArgb(7, 25, 24); input.ForeColor = Color.White;
-            accept.Text = "ارسال پیام"; accept.DialogResult = DialogResult.OK; accept.Location = new Point(214, 102); accept.Size = new Size(100, 32);
-            cancel.Text = "انصراف"; cancel.DialogResult = DialogResult.Cancel; cancel.Location = new Point(318, 102); cancel.Size = new Size(94, 32);
-            foreach (Button button in new[] { accept, cancel }) { button.FlatStyle = FlatStyle.Flat; button.FlatAppearance.BorderSize = 0; button.BackColor = Color.FromArgb(5, 150, 105); button.ForeColor = Color.White; button.Font = new Font("Segoe UI", 9F, FontStyle.Bold); }
-            dialog.Controls.Add(caption); dialog.Controls.Add(input); dialog.Controls.Add(accept); dialog.Controls.Add(cancel);
-            dialog.AcceptButton = accept; dialog.CancelButton = cancel;
-            string result = dialog.ShowDialog(this) == DialogResult.OK ? input.Text.Trim() : null;
-            dialog.Dispose();
             return result;
         }
 
-        private void PinSelected(object sender, EventArgs e)
+        private bool NameExists(string name)
         {
-            var item = _messages.SelectedItem as ServerMessageItem;
-            if (item == null) { MessageBox.Show("ابتدا یک پیام را از فهرست انتخاب کنید."); return; }
-            SetPinned(item.Id);
-        }
-        private void SetPinned(string id)
-        {
-            _pinnedId = id; ChatMessageInfo m = null;
-            if (!string.IsNullOrEmpty(id)) lock (_sync) m = _history.FirstOrDefault(x => x.MessageId == id);
-            Broadcast(new ChatPacket { Type = "Pinned", IsPinned = m != null, MessageId = m == null ? "" : m.MessageId,
-                Text = m == null ? "" : m.Text, UserName = m == null ? "" : m.SenderName });
-            _pinned.Text = m == null ? "پیامی سنجاق نشده است" : "سنجاق: " + m.SenderName + " — " + Short(m.Text, 40);
-            Log(m == null ? "سنجاق پیام برداشته شد." : "پیام " + m.SenderName + " سنجاق شد.");
-        }
-        private string PinnedText()
-        { lock (_sync) { var m = _history.FirstOrDefault(x => x.MessageId == _pinnedId); return m == null ? "" : m.Text; } }
-        private string PinnedUser()
-        { lock (_sync) { var m = _history.FirstOrDefault(x => x.MessageId == _pinnedId); return m == null ? "" : m.SenderName; } }
-        private string Short(string s, int length) { if (string.IsNullOrEmpty(s) || s.Length <= length) return s ?? ""; return s.Substring(0, length) + "…"; }
-        private void AddServerMessage(ChatMessageInfo m)
-        {
-            Ui(delegate
+            if (string.Equals(name, ChatConst.ServerName, StringComparison.OrdinalIgnoreCase)) return true;
+            foreach (ClientSession s in sessions)
             {
-                // هر پیام در تب مدیریتی و تب پیام‌های شبکه نمایش داده می‌شود؛ شناسه در تب مدیریتی برای سنجاق حفظ می‌شود.
-                if (_messages != null && !_messages.IsDisposed)
+                if (string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        // پردازش بسته‌های کاربر
+        private void HandleClientPacket(ClientSession me, Packet p)
+        {
+            switch (p.Type)
+            {
+                case "MSG":
+                    OnClientMessage(me, p);
+                    break;
+
+                case "EDIT":
+                    EditMessage(p.ArgLong(0), me.Name, ChatText.LimitText(p.Arg(1)));
+                    break;
+
+                case "DEL":
+                    DeleteMessage(p.ArgLong(0), me.Name, false);
+                    break;
+
+                case "REACT":
+                    ToggleReaction(me.Name, p.ArgLong(0), p.Arg(1));
+                    break;
+
+                case "READ":
+                    OnRead(me, p.ArgLong(0));
+                    break;
+
+                case "TYPING":
+                    SendToAll(new Packet("TYPING", me.Name), me);
+                    Ui(() => chat.AddTyper(me.Name));
+                    break;
+            }
+        }
+
+        // ==================================================================================
+        // پیام‌ها
+        // ==================================================================================
+
+        // ساخت پیام جدید و ثبت در تاریخچه. فقط داخل lock صدا زده شود
+        private ChatMessageInfo NewMessage(string sender, int avatar, string kind, string text, long replyId)
+        {
+            ChatMessageInfo m = new ChatMessageInfo();
+            m.Id = ++nextId;
+            m.Sender = sender;
+            m.Avatar = avatar;
+            m.Kind = kind;
+            m.Time = DateTime.Now;
+            m.Text = text;
+
+            ChatMessageInfo orig;
+            if (replyId != 0 && byId.TryGetValue(replyId, out orig) && !orig.Deleted)
+            {
+                m.ReplyId = replyId;
+                m.ReplyName = orig.Sender;
+                m.ReplyText = ChatText.Snippet(orig.Text, 80);
+            }
+
+            history.Add(m);
+            byId[m.Id] = m;
+            totalMessages++;
+
+            // تاریخچه را در ۵۰۰ پیام نگه می‌داریم
+            if (history.Count > 500)
+            {
+                for (int i = 0; i < 50; i++) byId.Remove(history[i].Id);
+                history.RemoveRange(0, 50);
+            }
+            return m;
+        }
+
+        // پیام جدید از کلاینت: به فرستنده ACK (۲ تیک) می‌دهیم و برای بقیه پخش می‌کنیم
+        private void OnClientMessage(ClientSession me, Packet p)
+        {
+            string text = ChatText.LimitText(p.Arg(1));
+            if (text.Length == 0) return;
+
+            ChatMessageInfo m;
+            lock (stateLock)
+            {
+                m = NewMessage(me.Name, me.Avatar, "user", text, p.ArgLong(2));
+                me.Messages++;
+            }
+
+            me.Conn.Send(new Packet("ACK", p.Arg(0), m.Id.ToString(CultureInfo.InvariantCulture)));
+            SendToAll(ChatText.ToPacket(m, false), me);
+
+            ChatMessageInfo copy = m.Clone();
+            Ui(() => { chat.RemoveTyper(copy.Sender); chat.View.AddMessage(copy, true); });
+        }
+
+        // پیام از طرف سرور (مدیر)
+        private void ServerSend(string text, long replyId)
+        {
+            if (!running) return;
+
+            ChatMessageInfo m;
+            lock (stateLock)
+            {
+                m = NewMessage(ChatConst.ServerName, -1, "server", text, replyId);
+            }
+            SendToAll(ChatText.ToPacket(m, false), null);
+            chat.View.AddMessage(m.Clone(), true);
+        }
+
+        private void ServerEdit(long id, string text)
+        {
+            if (!running) return;
+            EditMessage(id, ChatConst.ServerName, ChatText.LimitText(text));
+        }
+
+        // ویرایش پیام (فقط فرستنده خود پیام)
+        private void EditMessage(long id, string requester, string text)
+        {
+            if (text.Length == 0) return;
+
+            bool pinned;
+            lock (stateLock)
+            {
+                ChatMessageInfo m;
+                if (!byId.TryGetValue(id, out m) || m.Deleted || m.Sender != requester) return;
+                m.Text = text;
+                m.Edited = true;
+                pinned = pins.Contains(id);
+            }
+
+            SendToAll(new Packet("EDIT", id.ToString(CultureInfo.InvariantCulture), text), null);
+            Ui(() => chat.View.SetEdited(id, text));
+            if (pinned) BroadcastPins();
+        }
+
+        // حذف پیام: فرستنده یا مدیر (admin) می‌تواند حذف کند
+        private void DeleteMessage(long id, string requester, bool admin)
+        {
+            bool wasPinned = false;
+            lock (stateLock)
+            {
+                ChatMessageInfo m;
+                if (!byId.TryGetValue(id, out m) || m.Deleted) return;
+                if (!admin && m.Sender != requester) return;
+                m.Deleted = true;
+                m.Reactions.Clear();
+                wasPinned = pins.Remove(id);
+            }
+
+            SendToAll(new Packet("DEL", id.ToString(CultureInfo.InvariantCulture)), null);
+            Ui(() => chat.View.MarkDeleted(id));
+            if (wasPinned) BroadcastPins();
+        }
+
+        // زدن یا برداشتن یک واکنش (ایموجی) روی پیام
+        private void ToggleReaction(string user, long id, string emoji)
+        {
+            bool allowed = false;
+            foreach (string e in ChatConst.Reactions) if (e == emoji) allowed = true;
+            if (!allowed) return;
+
+            string encoded;
+            lock (stateLock)
+            {
+                ChatMessageInfo m;
+                if (!byId.TryGetValue(id, out m) || m.Deleted) return;
+
+                ReactionInfo ri = null;
+                foreach (ReactionInfo r in m.Reactions) if (r.Emoji == emoji) { ri = r; break; }
+                if (ri == null)
                 {
-                    _messages.Items.Add(new ServerMessageItem { Id = m.MessageId, User = m.SenderName, Text = m.Text });
-                    if (_messages.Items.Count > 0) _messages.TopIndex = _messages.Items.Count - 1;
+                    ri = new ReactionInfo();
+                    ri.Emoji = emoji;
+                    m.Reactions.Add(ri);
                 }
-                if (_networkMessages != null && !_networkMessages.IsDisposed)
+
+                if (!ri.Users.Remove(user)) ri.Users.Add(user);
+                if (ri.Users.Count == 0) m.Reactions.Remove(ri);
+                encoded = ChatText.EncodeReactions(m.Reactions);
+            }
+
+            SendToAll(new Packet("REACT", id.ToString(CultureInfo.InvariantCulture), encoded), null);
+            List<ReactionInfo> decoded = ChatText.DecodeReactions(encoded);
+            Ui(() => chat.View.SetReactions(id, decoded));
+        }
+
+        // «خوانده شد» توسط یک کاربر: به فرستنده پیام اطلاع می‌دهیم (۳ تیک)
+        private void OnRead(ClientSession me, long id)
+        {
+            string sender;
+            int count;
+            lock (stateLock)
+            {
+                ChatMessageInfo m;
+                if (!byId.TryGetValue(id, out m) || m.Deleted || m.Sender == me.Name) return;
+                if (!m.Readers.Add(me.Name)) return;
+                sender = m.Sender;
+                count = m.Readers.Count;
+            }
+
+            ClientSession target = null;
+            lock (stateLock)
+            {
+                foreach (ClientSession s in sessions) if (s.Name == sender) { target = s; break; }
+            }
+            if (target != null)
+            {
+                target.Conn.Send(new Packet("READ", id.ToString(CultureInfo.InvariantCulture), count.ToString(CultureInfo.InvariantCulture)));
+            }
+        }
+
+        // ==================================================================================
+        // سنجاق کردن پیام
+        // ==================================================================================
+
+        // سنجاق کردن یا برداشتن سنجاق (حداکثر ۵ پیام)
+        private void TogglePin(long id)
+        {
+            lock (stateLock)
+            {
+                if (!pins.Remove(id))
                 {
-                    _networkMessages.Items.Add(DateTime.Now.ToString("HH:mm:ss") + "  •  " + m.SenderName + ": " + Short(m.Text, 110));
-                    if (_networkMessages.Items.Count > 0) _networkMessages.TopIndex = _networkMessages.Items.Count - 1;
+                    ChatMessageInfo m;
+                    if (!byId.TryGetValue(id, out m) || m.Deleted) return;
+                    pins.Insert(0, id);
+                    if (pins.Count > 5) pins.RemoveAt(pins.Count - 1);
                 }
+            }
+            BroadcastPins();
+        }
+
+        private List<PinInfo> BuildPinList()
+        {
+            List<PinInfo> list = new List<PinInfo>();
+            lock (stateLock)
+            {
+                foreach (long id in pins)
+                {
+                    ChatMessageInfo m;
+                    if (byId.TryGetValue(id, out m) && !m.Deleted)
+                    {
+                        PinInfo pi = new PinInfo();
+                        pi.Id = id;
+                        pi.Sender = m.Sender;
+                        pi.Text = ChatText.Snippet(m.Text, 120);
+                        list.Add(pi);
+                    }
+                }
+            }
+            return list;
+        }
+
+        private Packet BuildPinsPacket()
+        {
+            List<PinInfo> list = BuildPinList();
+            List<string> args = new List<string>();
+            args.Add(list.Count.ToString(CultureInfo.InvariantCulture));
+            foreach (PinInfo pi in list)
+            {
+                args.Add(pi.Id.ToString(CultureInfo.InvariantCulture));
+                args.Add(pi.Sender);
+                args.Add(pi.Text);
+            }
+            return new Packet("PINS", args.ToArray());
+        }
+
+        private void BroadcastPins()
+        {
+            SendToAll(BuildPinsPacket(), null);
+            List<PinInfo> list = BuildPinList();
+            Ui(() => chat.SetPins(list));
+        }
+
+        // ==================================================================================
+        // ارسال همگانی
+        // ==================================================================================
+
+        // ارسال یک بسته برای همه کاربران آماده (به جز except)
+        private void SendToAll(Packet p, ClientSession except)
+        {
+            List<ClientSession> snapshot;
+            lock (stateLock) { snapshot = new List<ClientSession>(sessions); }
+            foreach (ClientSession s in snapshot)
+            {
+                if (s == except || !s.Ready) continue;
+                s.Conn.Send(p);
+            }
+        }
+
+        // پیام سیستمی (ورود / خروج) برای همه و نمایش در چت سرور
+        private void BroadcastSystem(string text, int kind, ClientSession except)
+        {
+            DateTime now = DateTime.Now;
+            SendToAll(new Packet("SYS", text, now.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture), kind.ToString(CultureInfo.InvariantCulture)), except);
+            Ui(() => chat.View.AddSystem(text, now, kind));
+        }
+
+        // فرستادن لیست کاربران آنلاین (نام و آواتار) برای همه
+        private void BroadcastUsers()
+        {
+            List<string> args = new List<string>();
+            lock (stateLock)
+            {
+                foreach (ClientSession s in sessions)
+                {
+                    if (!s.Ready) continue;
+                    args.Add(s.Name);
+                    args.Add(s.Avatar.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            SendToAll(new Packet("USERS", args.ToArray()), null);
+        }
+
+        // به‌روزرسانی لیست کاربران در فرم سرور (با آی‌پی، زمان اتصال و ...)
+        private void RefreshUsersUi()
+        {
+            List<UserRow> rows = new List<UserRow>();
+            lock (stateLock)
+            {
+                foreach (ClientSession s in sessions)
+                {
+                    if (!s.Ready) continue;
+                    UserRow u = new UserRow();
+                    u.Name = s.Name;
+                    u.Avatar = s.Avatar;
+                    u.Ip = s.Ip;
+                    u.Port = s.Port;
+                    u.ConnectedAt = s.ConnectedAt;
+                    u.Messages = s.Messages;
+                    rows.Add(u);
+                }
+            }
+            Ui(() =>
+            {
+                users.SetUsers(rows);
+                lblUsers.Text = "کاربران آنلاین (" + Fa.Digits(rows.Count) + ")";
             });
         }
-        private void Log(string value)
+
+        // قطع اتصال یک کاربر توسط مدیر (دکمه «قطع اتصال» در لیست کاربران)
+        private void KickUser(string name)
         {
-            Ui(delegate { if (_logs == null || _logs.IsDisposed) return; _logs.Items.Add(DateTime.Now.ToString("HH:mm:ss") + "  •  " + value); _logs.TopIndex = _logs.Items.Count - 1; });
-        }
-        private void RefreshUsers()
-        {
-            Ui(delegate
+            ClientSession target = null;
+            lock (stateLock)
             {
-                if (_users == null || _users.IsDisposed) return;
-                Guid? selectedId = _users.SelectedRows.Count > 0 && _users.SelectedRows[0].Tag is Guid ? (Guid?)_users.SelectedRows[0].Tag : null;
-                var list = _clients.Values.OrderBy(x => x.UserName).ToArray(); _users.Rows.Clear();
-                foreach (var u in list)
-                {
-                    int row = _users.Rows.Add(u.Avatar, u.UserName, u.IpAddress, u.ConnectedAt.ToString("HH:mm:ss"), Duration(DateTime.Now - u.ConnectedAt));
-                    _users.Rows[row].Tag = u.Id;
-                    if (selectedId.HasValue && selectedId.Value == u.Id) _users.Rows[row].Selected = true;
-                }
-                _count.Text = list.Length + " کاربر آنلاین"; RefreshTrafficCore();
-            });
+                foreach (ClientSession s in sessions) if (s.Name == name) { target = s; break; }
+            }
+            if (target == null) return;
+
+            target.Kicked = true;
+            target.Conn.Send(new Packet("KICK", "شما توسط سرور از چت خارج شدید."));
+            target.Conn.Close();      // ترید کاربر با خطا تمام می‌شود و RemoveSession اجرا می‌شود
         }
-        private string Duration(TimeSpan t) { return string.Format("{0:00}:{1:00}:{2:00}", (int)t.TotalHours, t.Minutes, t.Seconds); }
-        private void RefreshTraffic() { Ui(RefreshTrafficCore); }
-        private void RefreshTrafficCore()
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            if (_traffic == null || _traffic.IsDisposed) return;
-            int count; lock (_sync) count = _history.Count;
-            _traffic.Text = "پیام‌های نگهداری‌شده: " + count + "  |  اتصال‌های فعال: " + _clients.Count;
+            // با بستن پنجره، اگر سرور روشن است اتصال همه قطع می‌شود
+            if (running) StopServer("برنامه سرور بسته شد.");
+            statsTimer.Stop();
+            Theme.Changed -= OnThemeChanged;
+            base.OnFormClosing(e);
         }
-        private void SetState(bool running)
-        {
-            Ui(delegate
-            {
-                _status.Text = running ? "● سرور فعال است و آماده دریافت اتصال" : "● سرور متوقف است";
-                _status.ForeColor = running ? Color.FromArgb(52, 211, 153) : Color.FromArgb(239, 100, 100);
-                // نشانگر سربرگ هم‌زمان با وضعیت واقعی سوکت تغییر می‌کند.
-                _readyBadge.Text = running ? "●  سرور در حال اجرا" : "●  سرور آماده به اجرا";
-                _readyBadge.BackColor = running ? Color.FromArgb(5, 120, 87) : (_dark ? Color.FromArgb(6, 78, 59) : Color.FromArgb(209, 250, 229));
-                ModernButton modernStartButton = _start as ModernButton;
-                if (modernStartButton != null)
-                {
-                    modernStartButton.HoverColor = running ? Color.FromArgb(4, 120, 87) : Color.FromArgb(5, 150, 105);
-                    modernStartButton.PressedColor = running ? Color.FromArgb(3, 95, 70) : Color.FromArgb(4, 110, 80);
-                }
-                _start.Enabled = true;
-                _start.Text = running ? "■  توقف سوکت" : "▶  اجرای سوکت";
-                _start.BackColor = running ? Color.FromArgb(5, 150, 105) : Color.FromArgb(37, 99, 235);
-                _start.FlatAppearance.MouseOverBackColor = Color.FromArgb(4, 120, 87);
-                _port.Enabled = !running; _host.Enabled = !running;
-            });
-        }
-        private void Ui(Action action)
-        {
-            try { if (IsDisposed || !IsHandleCreated) return; if (InvokeRequired) BeginInvoke(action); else action(); }
-            catch (InvalidOperationException) { }
-        }
-        private void OnClosing(object sender, FormClosingEventArgs e)
-        { if (_timer != null) { _timer.Stop(); _timer.Dispose(); } StopServer(true); }
-        #endregion
     }
 }

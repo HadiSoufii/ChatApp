@@ -533,6 +533,9 @@ namespace ChatpApp.Server
                 me.Messages++;
             }
 
+            // تعداد پیام‌های این کاربر در لیست آنلاین سرور بلافاصله به‌روزرسانی می‌شود.
+            RefreshUsersUi();
+
             me.Conn.Send(new Packet("ACK", p.Arg(0), m.Id.ToString(CultureInfo.InvariantCulture)));
             SendToAll(ChatText.ToPacket(m, false), me);
 

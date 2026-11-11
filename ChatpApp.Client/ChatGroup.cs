@@ -29,6 +29,7 @@ namespace ChatpApp.Client
         private bool historyDivider;
         private bool soundOn = true;
         private int unread;
+        private NotifyIcon notificationIcon;
 
         /// <summary>
         /// اگر true باشد، بعد از بسته شدن این فرم، فرم ورود دوباره نمایش داده می‌شود (وگرنه برنامه بسته می‌شود)
@@ -68,6 +69,23 @@ namespace ChatpApp.Client
         private void SetupBehavior()
         {
             DoubleBuffered = true;
+
+            // آیکون اعلان ویندوز برای نمایش پیام‌های جدید حتی در حالت Minimize.
+            notificationIcon = new NotifyIcon();
+            notificationIcon.Icon = Icon ?? SystemIcons.Application;
+            notificationIcon.Text = "چت‌روم";
+            notificationIcon.BalloonTipIcon = ToolTipIcon.Info;
+            notificationIcon.BalloonTipClosed += delegate
+            {
+                // پس از بسته شدن اعلان، آیکون موقت از ناحیه اعلان جمع می‌شود.
+                try { notificationIcon.Visible = false; } catch { }
+            };
+            notificationIcon.BalloonTipClicked += delegate
+            {
+                // با کلیک روی اعلان، پنجره چت دوباره فعال می‌شود.
+                if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+                Activate();
+            };
 
             lblSub.Text = "متصل به " + host + " : " + port;
             pill.SetState("متصل", Color.FromArgb(74, 222, 128), true);
@@ -291,17 +309,40 @@ namespace ChatpApp.Client
 
             chat.View.AddMessage(m, true);
             chat.RemoveTyper(m.Sender);
-            if (m.Sender != myName) Notify();
+            if (m.Sender != myName) Notify(m.Sender, m.Text);
         }
 
         // اعلان پیام جدید: صدا + (اگر پنجره فعال نیست) چشمک آیکون نوار وظیفه و شمارنده در عنوان
-        private void Notify()
+        private void Notify(string sender, string message)
         {
+            // اعلان صوتی قبلی طبق تنظیم کاربر حفظ می‌شود.
             if (soundOn)
             {
                 try { SystemSounds.Asterisk.Play(); } catch { }
             }
 
+            // اعلان کوتاه ویندوز برای هر پیام جدید دریافتی از کاربران دیگر.
+            try
+            {
+                if (notificationIcon != null && !IsDisposed)
+                {
+                    string preview = (message ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+                    if (preview.Length > 160) preview = preview.Substring(0, 157) + "...";
+
+                    notificationIcon.Icon = Icon ?? SystemIcons.Application;
+                    notificationIcon.Visible = true;
+                    notificationIcon.ShowBalloonTip(3500,
+                        "پیام جدید از " + (string.IsNullOrWhiteSpace(sender) ? "کاربر" : sender),
+                        preview.Length == 0 ? "یک پیام جدید دریافت شد." : preview,
+                        ToolTipIcon.Info);
+                }
+            }
+            catch
+            {
+                // اگر اعلان ویندوز در تنظیمات سیستم غیرفعال باشد، دریافت پیام مختل نمی‌شود.
+            }
+
+            // شمارنده و چشمک نوار وظیفه فقط زمانی فعال می‌شوند که پنجره در پس‌زمینه باشد.
             if (Form.ActiveForm != this)
             {
                 unread++;
@@ -386,6 +427,15 @@ namespace ChatpApp.Client
             }
             readTimer.Stop();
             Theme.Changed -= OnThemeChanged;
+
+            // آزادسازی آیکون اعلان هنگام بسته شدن فرم برای جلوگیری از باقی ماندن آن در System Tray.
+            if (notificationIcon != null)
+            {
+                notificationIcon.Visible = false;
+                notificationIcon.Dispose();
+                notificationIcon = null;
+            }
+
             base.OnFormClosing(e);
         }
     }

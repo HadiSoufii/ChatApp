@@ -396,9 +396,12 @@ namespace ChatpApp.Shared
             }
 
             // متن
-            Size ts = TextRenderer.MeasureText(it.Shown, m.Deleted ? Theme.Font(10, FontStyle.Italic) : fText,
-                new Size(innerMax, 0), UiUtil.Flags(it.TextRtl, true, false, false, false));
-            if (ts.Height < 18) ts.Height = 18;
+            TextFormatFlags messageFlags = UiUtil.Flags(it.TextRtl, true, false, false, false);
+            Size ts = TextRenderer.MeasureText(it.Shown,
+                m.Deleted ? Theme.Font(10, FontStyle.Italic) : fText,
+                new Size(innerMax, 10000), messageFlags);
+            // فضای عمودی کمی اضافه می‌کنیم تا نقطه‌های بالا و پایین حروف فارسی بریده نشوند.
+            ts.Height = Math.Max(20, ts.Height + 4);
             contentW = Math.Max(contentW, Math.Min(ts.Width, innerMax));
 
             // واکنش‌ها: عرض هر چیپ و چیدمان در ردیف‌ها
@@ -613,21 +616,30 @@ namespace ChatpApp.Shared
             DrawToBottom(g);
         }
 
-        private void DrawItem(Graphics g, ViewItem it)
+        // جابه‌جایی مستطیل برای رسم در مختصات نهایی کنترل؛ از تبدیل Graphics استفاده نمی‌شود.
+        private static Rectangle OffsetRectY(Rectangle rect, int offsetY)
         {
-            float ease = 1f - (1f - it.Appear) * (1f - it.Appear);
-            float off = (1f - ease) * 18f;
-            GraphicsState st = g.Save();
-            g.TranslateTransform(0, it.Y - scrollY + off);
-            if (it.Kind == ItemKind.Message) DrawMessage(g, it);
-            else if (it.Kind == ItemKind.System) DrawSystem(g, it);
-            else DrawWelcome(g, it);
-            g.Restore(st);
+            rect.Offset(0, offsetY);
+            return rect;
         }
 
-        private void DrawSystem(Graphics g, ViewItem it)
+        private void DrawItem(Graphics g, ViewItem it)
         {
-            Rectangle r = it.SysRect;
+            // انیمیشن ورود فقط مقدار Y را تغییر می‌دهد؛ از TranslateTransform استفاده نمی‌کنیم،
+            // چون TextRenderer در بعضی نسخه‌های GDI مختصات تبدیل‌شده Graphics را رعایت نمی‌کند.
+            float ease = 1f - (1f - it.Appear) * (1f - it.Appear);
+            float off = (1f - ease) * 18f;
+            int offsetY = (int)Math.Round(it.Y - scrollY + off);
+
+            if (it.Kind == ItemKind.Message) DrawMessage(g, it, offsetY);
+            else if (it.Kind == ItemKind.System) DrawSystem(g, it, offsetY);
+            else DrawWelcome(g, it, offsetY);
+        }
+
+        private void DrawSystem(Graphics g, ViewItem it, int offsetY)
+        {
+            // مستطیل پیام سیستمی به مختصات نهایی صفحه منتقل می‌شود.
+            Rectangle r = OffsetRectY(it.SysRect, offsetY);
             UiUtil.FillRound(g, Theme.SystemChip, r, r.Height / 2f);
 
             // نقطه رنگی بر اساس نوع پیام
@@ -641,20 +653,20 @@ namespace ChatpApp.Shared
                 UiUtil.Flags(true, false, true, true, true));
         }
 
-        private void DrawWelcome(Graphics g, ViewItem it)
+        private void DrawWelcome(Graphics g, ViewItem it, int offsetY)
         {
-            Rectangle card = it.CardRect;
+            // کارت خوشامدگویی هم با مختصات نهایی رسم می‌شود تا متن و شکل‌ها دقیقاً هم‌تراز باشند.
+            Rectangle card = OffsetRectY(it.CardRect, offsetY);
             using (GraphicsPath p = UiUtil.RoundRect(card, 24))
             {
-                // سایه
-                UiUtil.FillRound(g, Color.FromArgb(Theme.IsDark ? 50 : 28, 30, 20, 90), new RectangleF(card.X + 2, card.Y + 6, card.Width, card.Height), 24);
+                // سایه کارت
+                UiUtil.FillRound(g, Color.FromArgb(Theme.IsDark ? 50 : 28, 30, 20, 90),
+                    new RectangleF(card.X + 2, card.Y + 6, card.Width, card.Height), 24);
 
                 using (LinearGradientBrush gb = new LinearGradientBrush(card, Theme.Accent, Theme.AccentAlt, 35f))
-                {
                     g.FillPath(gb, p);
-                }
 
-                // تزئینات: دایره‌ها و ستاره‌های نیمه‌شفاف داخل کارت
+                // تزئینات نیمه‌شفاف داخل کارت
                 GraphicsState st = g.Save();
                 g.SetClip(p, CombineMode.Intersect);
                 using (Brush w1 = new SolidBrush(Color.FromArgb(28, 255, 255, 255)))
@@ -679,50 +691,56 @@ namespace ChatpApp.Shared
             }
             AvatarPainter.Draw(g, it.WelcomeAvatar, av);
 
-            // عنوان و متن
-            Rectangle title = new Rectangle(card.X + it.TitleRect.X, card.Y + it.TitleRect.Y, it.TitleRect.Width, it.TitleRect.Height);
-            TextRenderer.DrawText(g, "سلام " + it.WelcomeName + " عزیز!", Theme.Font(15, FontStyle.Bold), title, Color.White,
-                UiUtil.Flags(true, false, true, true, true));
+            // مختصات عنوان و متن نسبت به کارت هستند و ابتدا به مختصات صفحه منتقل می‌شوند.
+            Rectangle title = new Rectangle(card.X + it.TitleRect.X, card.Y + it.TitleRect.Y,
+                it.TitleRect.Width, it.TitleRect.Height);
+            TextRenderer.DrawText(g, "سلام " + it.WelcomeName + " عزیز!", Theme.Font(15, FontStyle.Bold),
+                title, Color.White, UiUtil.Flags(true, false, true, true, true));
 
-            Rectangle wt = new Rectangle(card.X + it.WTextRect.X, card.Y + it.WTextRect.Y, it.WTextRect.Width, it.WTextRect.Height);
-            TextRenderer.DrawText(g, it.WelcomeText, Theme.Font(10.5f), wt, Color.FromArgb(235, 255, 255, 255),
-                UiUtil.Flags(Fa.IsRtl(it.WelcomeText), true, true, false, false) | TextFormatFlags.NoClipping);
+            Rectangle wt = new Rectangle(card.X + it.WTextRect.X, card.Y + it.WTextRect.Y,
+                it.WTextRect.Width, it.WTextRect.Height);
+            TextRenderer.DrawText(g, it.WelcomeText, Theme.Font(10.5f), wt,
+                Color.FromArgb(235, 255, 255, 255),
+                UiUtil.Flags(Fa.IsRtl(it.WelcomeText), true, true, false, false));
 
-            // قرص تعداد آنلاین‌ها
-            Rectangle chip = new Rectangle(card.X + it.WChipRect.X, card.Y + it.WChipRect.Y, it.WChipRect.Width, it.WChipRect.Height);
+            // قرص تعداد کاربران آنلاین
+            Rectangle chip = new Rectangle(card.X + it.WChipRect.X, card.Y + it.WChipRect.Y,
+                it.WChipRect.Width, it.WChipRect.Height);
             UiUtil.FillRound(g, Color.FromArgb(48, 255, 255, 255), chip, chip.Height / 2f);
-            using (Brush gb = new SolidBrush(Color.FromArgb(74, 222, 128))) g.FillEllipse(gb, chip.Right - 22, chip.Y + 9, 10, 10);
-            TextRenderer.DrawText(g, Fa.Digits(it.WelcomeOnline) + " نفر در چت آنلاین هستند", Theme.Font(9.5f, FontStyle.Bold),
-                new Rectangle(chip.X + 6, chip.Y, chip.Width - 32, chip.Height), Color.White, UiUtil.Flags(true, false, true, true, true));
+            using (Brush gb = new SolidBrush(Color.FromArgb(74, 222, 128)))
+                g.FillEllipse(gb, chip.Right - 22, chip.Y + 9, 10, 10);
+            TextRenderer.DrawText(g, Fa.Digits(it.WelcomeOnline) + " نفر در چت آنلاین هستند",
+                Theme.Font(9.5f, FontStyle.Bold), new Rectangle(chip.X + 6, chip.Y, chip.Width - 32, chip.Height),
+                Color.White, UiUtil.Flags(true, false, true, true, true));
         }
 
-        private void DrawMessage(Graphics g, ViewItem it)
+        private void DrawMessage(Graphics g, ViewItem it, int offsetY)
         {
             ChatMessageInfo m = it.Msg;
             bool mine = IsMine(m);
             bool server = m.Kind == "server";
             bool dark = Theme.IsDark;
 
-            // آواتار
-            using (Pen ring = new Pen(Theme.Surface, 2f)) g.DrawEllipse(ring, it.AvatarRect);
-            AvatarPainter.Draw(g, m.Avatar, it.AvatarRect);
+            // آواتار و حباب هر دو در مختصات نهایی صفحه رسم می‌شوند.
+            Rectangle avatar = OffsetRectY(it.AvatarRect, offsetY);
+            using (Pen ring = new Pen(Theme.Surface, 2f)) g.DrawEllipse(ring, avatar);
+            AvatarPainter.Draw(g, m.Avatar, avatar);
 
-            // حباب
-            Rectangle b = it.Bubble;
-            GraphicsState st = g.Save();
-            g.TranslateTransform(b.X, b.Y);
-            RectangleF br = new RectangleF(0, 0, b.Width, b.Height);
+            Rectangle b = OffsetRectY(it.Bubble, offsetY);
+            RectangleF br = new RectangleF(b.X, b.Y, b.Width, b.Height);
             float big = 16, small = 4;
-            using (GraphicsPath path = mine ? UiUtil.RoundRect(br, big, small, big, big) : UiUtil.RoundRect(br, small, big, big, big))
+            using (GraphicsPath path = mine
+                ? UiUtil.RoundRect(br, big, small, big, big)
+                : UiUtil.RoundRect(br, small, big, big, big))
             {
                 if (!dark && !m.Deleted)
                 {
-                    using (GraphicsPath sp = mine ? UiUtil.RoundRect(new RectangleF(0, 2, b.Width, b.Height), big, small, big, big)
-                                                  : UiUtil.RoundRect(new RectangleF(0, 2, b.Width, b.Height), small, big, big, big))
+                    RectangleF shadowRect = new RectangleF(b.X, b.Y + 2, b.Width, b.Height);
+                    using (GraphicsPath sp = mine
+                        ? UiUtil.RoundRect(shadowRect, big, small, big, big)
+                        : UiUtil.RoundRect(shadowRect, small, big, big, big))
                     using (Brush sb = new SolidBrush(Color.FromArgb(22, 40, 50, 110)))
-                    {
                         g.FillPath(sb, sp);
-                    }
                 }
 
                 if (m.Deleted)
@@ -732,12 +750,14 @@ namespace ChatpApp.Shared
                 }
                 else if (server)
                 {
-                    using (LinearGradientBrush fb = new LinearGradientBrush(br, Theme.BubbleServerA, Theme.BubbleServerB, 45f)) g.FillPath(fb, path);
+                    using (LinearGradientBrush fb = new LinearGradientBrush(br, Theme.BubbleServerA, Theme.BubbleServerB, 45f))
+                        g.FillPath(fb, path);
                     using (Pen bp = new Pen(Color.FromArgb(110, Theme.Warning), 1f)) g.DrawPath(bp, path);
                 }
                 else if (mine)
                 {
-                    using (LinearGradientBrush fb = new LinearGradientBrush(br, Theme.Accent, Theme.AccentAlt, 45f)) g.FillPath(fb, path);
+                    using (LinearGradientBrush fb = new LinearGradientBrush(br, Theme.Accent, Theme.AccentAlt, 45f))
+                        g.FillPath(fb, path);
                 }
                 else
                 {
@@ -745,98 +765,107 @@ namespace ChatpApp.Shared
                     using (Pen bp = new Pen(Theme.Border, 1f)) g.DrawPath(bp, path);
                 }
 
-                // چشمک زدن پس از پرش به پیام
+                // هایلایت موقت هنگام پرش به پیام اصلی
                 if (flashT > 0f && flashId == m.Id)
                 {
-                    using (Brush fl = new SolidBrush(Color.FromArgb((int)(130 * flashT), mine && !server ? Color.White : Theme.Accent)))
-                    {
+                    using (Brush fl = new SolidBrush(Color.FromArgb((int)(130 * flashT),
+                        mine && !server ? Color.White : Theme.Accent)))
                         g.FillPath(fl, path);
-                    }
                 }
             }
 
-            // رنگ‌های متن بر اساس نوع حباب
             bool onAccent = mine && !server && !m.Deleted;
             Color textColor = m.Deleted ? Theme.Muted : (server ? Theme.ServerText : (mine ? Color.White : Theme.Text));
-            Color metaColor = onAccent ? Color.FromArgb(205, 255, 255, 255) : (server ? Color.FromArgb(170, Theme.ServerText) : Theme.Muted);
+            Color metaColor = onAccent ? Color.FromArgb(205, 255, 255, 255)
+                : (server ? Color.FromArgb(170, Theme.ServerText) : Theme.Muted);
             Color nameColor = server ? (dark ? Color.FromArgb(253, 224, 71) : Color.FromArgb(180, 83, 9))
-                            : (onAccent ? Color.FromArgb(235, 255, 255, 255) : Fa.NameColor(m.Sender, dark));
+                : (onAccent ? Color.FromArgb(235, 255, 255, 255) : Fa.NameColor(m.Sender, dark));
 
-            // نام فرستنده
-            TextRenderer.DrawText(g, m.Sender, Theme.Font(9, FontStyle.Bold), it.NameRect, nameColor,
+            // نام فرستنده با همان مختصات حباب
+            TextRenderer.DrawText(g, m.Sender, Theme.Font(9, FontStyle.Bold),
+                OffsetRectY(it.NameRect, offsetY), nameColor,
                 UiUtil.Flags(it.TextRtl, false, false, true, true));
 
             // بلوک پاسخ
             if (!it.ReplyRect.IsEmpty)
-            {
-                DrawReplyBlock(g, it, onAccent, server);
-            }
+                DrawReplyBlock(g, it, onAccent, server, offsetY);
 
-            // متن پیام
-            TextRenderer.DrawText(g, it.Shown, m.Deleted ? Theme.Font(10, FontStyle.Italic) : Theme.Font(10.5f), it.TextRect, textColor,
-                UiUtil.Flags(it.TextRtl, true, false, false, false) | TextFormatFlags.NoClipping);
+            // متن پیام بدون NoClipping رسم می‌شود تا از محدوده حباب خارج نشود.
+            Rectangle textRect = OffsetRectY(it.TextRect, offsetY);
+            TextRenderer.DrawText(g, it.Shown,
+                m.Deleted ? Theme.Font(10, FontStyle.Italic) : Theme.Font(10.5f),
+                textRect, textColor, UiUtil.Flags(it.TextRtl, true, false, false, false));
 
             // واکنش‌ها
             foreach (ChipInfo ci in it.Chips)
             {
                 ReactionInfo ri = null;
-                foreach (ReactionInfo r in m.Reactions) if (r.Emoji == ci.Emoji) { ri = r; break; }
-                if (ri == null) continue;
-                DrawChip(g, ci, ri, onAccent, server);
+                foreach (ReactionInfo r in m.Reactions)
+                    if (r.Emoji == ci.Emoji) { ri = r; break; }
+                if (ri != null) DrawChip(g, ci, ri, onAccent, server, offsetY);
             }
 
-            // پاورقی: ساعت، ویرایش شده، تیک‌ها
-            DrawFooter(g, it, metaColor, mine);
-
-            g.Restore(st);
+            // ساعت، برچسب ویرایش و وضعیت تحویل
+            DrawFooter(g, it, metaColor, mine, offsetY);
         }
 
-        private void DrawReplyBlock(Graphics g, ViewItem it, bool onAccent, bool server)
+        private void DrawReplyBlock(Graphics g, ViewItem it, bool onAccent, bool server, int offsetY)
         {
             ChatMessageInfo m = it.Msg;
-            Rectangle rr = it.ReplyRect;
-            Color fill = onAccent ? Color.FromArgb(48, 255, 255, 255) : (server ? Color.FromArgb(40, 120, 70, 10) : Color.FromArgb(Theme.IsDark ? 48 : 30, Theme.Accent));
+            Rectangle rr = OffsetRectY(it.ReplyRect, offsetY);
+            Color fill = onAccent ? Color.FromArgb(48, 255, 255, 255)
+                : (server ? Color.FromArgb(40, 120, 70, 10)
+                : Color.FromArgb(Theme.IsDark ? 48 : 30, Theme.Accent));
             UiUtil.FillRound(g, fill, rr, 8);
 
             Color barColor = onAccent ? Color.White : Theme.Accent;
-            RectangleF bar = it.TextRtl ? new RectangleF(rr.Right - 4, rr.Y + 4, 3, rr.Height - 8) : new RectangleF(rr.X + 1, rr.Y + 4, 3, rr.Height - 8);
+            RectangleF bar = it.TextRtl
+                ? new RectangleF(rr.Right - 4, rr.Y + 4, 3, rr.Height - 8)
+                : new RectangleF(rr.X + 1, rr.Y + 4, 3, rr.Height - 8);
             UiUtil.FillRound(g, barColor, bar, 1.5f);
 
             Rectangle nameR = new Rectangle(rr.X + 10, rr.Y + 3, rr.Width - 20, 16);
             Rectangle textR = new Rectangle(rr.X + 10, rr.Y + 20, rr.Width - 20, 16);
-            TextRenderer.DrawText(g, m.ReplyName, Theme.Font(8.5f, FontStyle.Bold), nameR, barColor, UiUtil.Flags(it.TextRtl, false, false, true, true));
+            TextRenderer.DrawText(g, m.ReplyName, Theme.Font(8.5f, FontStyle.Bold), nameR,
+                barColor, UiUtil.Flags(it.TextRtl, false, false, true, true));
             TextRenderer.DrawText(g, ChatText.Snippet(m.ReplyText, 60), Theme.Font(9), textR,
-                onAccent ? Color.FromArgb(220, 255, 255, 255) : Theme.Muted, UiUtil.Flags(it.TextRtl, false, false, true, true));
+                onAccent ? Color.FromArgb(220, 255, 255, 255) : Theme.Muted,
+                UiUtil.Flags(it.TextRtl, false, false, true, true));
         }
 
-        private void DrawChip(Graphics g, ChipInfo ci, ReactionInfo ri, bool onAccent, bool server)
+        private void DrawChip(Graphics g, ChipInfo ci, ReactionInfo ri, bool onAccent, bool server, int offsetY)
         {
+            Rectangle r = OffsetRectY(ci.Rect, offsetY);
             bool iReacted = ri.Users.Contains(MyName);
             Color fill;
             if (onAccent) fill = Color.FromArgb(iReacted ? 95 : 42, 255, 255, 255);
             else if (server) fill = Color.FromArgb(iReacted ? 80 : 40, 120, 70, 10);
             else fill = Color.FromArgb(iReacted ? 70 : 26, Theme.Accent);
 
-            using (GraphicsPath p = UiUtil.RoundRect(ci.Rect, 11))
+            using (GraphicsPath p = UiUtil.RoundRect(r, 11))
             using (Brush fb = new SolidBrush(fill))
             {
                 g.FillPath(fb, p);
                 if (iReacted)
                 {
-                    using (Pen bp = new Pen(onAccent ? Color.White : Theme.Accent, 1.2f)) g.DrawPath(bp, p);
+                    using (Pen bp = new Pen(onAccent ? Color.White : Theme.Accent, 1.2f))
+                        g.DrawPath(bp, p);
                 }
             }
 
             Color tint = onAccent ? Color.White : Theme.EmojiTint(ri.Emoji);
-            TextRenderer.DrawText(g, ri.Emoji, Theme.EmojiFont(10), new Rectangle(ci.Rect.X + 5, ci.Rect.Y, 20, ci.Rect.Height), tint,
-                TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, ri.Emoji, Theme.EmojiFont(10),
+                new Rectangle(r.X + 5, r.Y, 20, r.Height), tint,
+                TextFormatFlags.NoPadding | TextFormatFlags.SingleLine |
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             TextRenderer.DrawText(g, Fa.Digits(ri.Users.Count), Theme.Font(8.5f, FontStyle.Bold),
-                new Rectangle(ci.Rect.X + 26, ci.Rect.Y, ci.Rect.Width - 28, ci.Rect.Height),
+                new Rectangle(r.X + 26, r.Y, r.Width - 28, r.Height),
                 onAccent ? Color.White : Theme.Text,
-                TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+                TextFormatFlags.NoPadding | TextFormatFlags.SingleLine |
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
         }
 
-        private void DrawFooter(Graphics g, ViewItem it, Color meta, bool mine)
+        private void DrawFooter(Graphics g, ViewItem it, Color meta, bool mine, int offsetY)
         {
             ChatMessageInfo m = it.Msg;
             Font fSmall = Theme.Font(8);
@@ -848,22 +877,34 @@ namespace ChatpApp.Shared
             int tickW = ticks ? 28 : 0;
             int total = timeW + editedW + tickW;
 
-            Rectangle fr = it.FooterRect;
+            Rectangle fr = OffsetRectY(it.FooterRect, offsetY);
             int x = it.TextRtl ? fr.X : fr.Right - total;
-            TextFormatFlags f = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.Left | TextFormatFlags.VerticalCenter;
+            TextFormatFlags f = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine |
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter;
 
-            // ترتیب از چپ به راست: در متن فارسی [تیک][ساعت][ویرایش شده] و در متن انگلیسی [ویرایش شده][ساعت][تیک]
+            // ترتیب از چپ به راست: در متن فارسی [تیک][ساعت][ویرایش شده]
             if (it.TextRtl)
             {
                 if (ticks) { DrawTicksFor(g, x, fr.Y, m, meta); x += tickW; }
-                TextRenderer.DrawText(g, timeText, fSmall, new Rectangle(x, fr.Y, timeW + 2, fr.Height), meta, f);
+                TextRenderer.DrawText(g, timeText, fSmall,
+                    new Rectangle(x, fr.Y, timeW + 2, fr.Height), meta, f);
                 x += timeW;
-                if (edited) TextRenderer.DrawText(g, "ویرایش شده", fSmall, new Rectangle(x + 8, fr.Y, editedW, fr.Height), meta, f | TextFormatFlags.RightToLeft);
+                if (edited)
+                    TextRenderer.DrawText(g, "ویرایش شده", fSmall,
+                        new Rectangle(x + 8, fr.Y, editedW, fr.Height), meta,
+                        f | TextFormatFlags.RightToLeft);
             }
             else
             {
-                if (edited) { TextRenderer.DrawText(g, "ویرایش شده", fSmall, new Rectangle(x, fr.Y, editedW, fr.Height), meta, f | TextFormatFlags.RightToLeft); x += editedW; }
-                TextRenderer.DrawText(g, timeText, fSmall, new Rectangle(x, fr.Y, timeW + 2, fr.Height), meta, f);
+                if (edited)
+                {
+                    TextRenderer.DrawText(g, "ویرایش شده", fSmall,
+                        new Rectangle(x, fr.Y, editedW, fr.Height), meta,
+                        f | TextFormatFlags.RightToLeft);
+                    x += editedW;
+                }
+                TextRenderer.DrawText(g, timeText, fSmall,
+                    new Rectangle(x, fr.Y, timeW + 2, fr.Height), meta, f);
                 x += timeW;
                 if (ticks) DrawTicksFor(g, x + 6, fr.Y, m, meta);
             }

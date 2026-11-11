@@ -623,6 +623,14 @@ namespace ChatpApp.Shared
             return rect;
         }
 
+        // مستطیل‌های داخل حباب نسبت به گوشه بالای چپ حباب ذخیره شده‌اند؛
+        // هنگام رسم باید هم جابه‌جایی افقی حباب و هم جابه‌جایی عمودی اسکرول/انیمیشن اعمال شود.
+        private static Rectangle OffsetBubbleRect(Rectangle rect, Rectangle bubble, int offsetY)
+        {
+            rect.Offset(bubble.X, offsetY);
+            return rect;
+        }
+
         private void DrawItem(Graphics g, ViewItem it)
         {
             // انیمیشن ورود فقط مقدار Y را تغییر می‌دهد؛ از TranslateTransform استفاده نمی‌کنیم،
@@ -783,7 +791,7 @@ namespace ChatpApp.Shared
 
             // نام فرستنده با همان مختصات حباب
             TextRenderer.DrawText(g, m.Sender, Theme.Font(9, FontStyle.Bold),
-                OffsetRectY(it.NameRect, offsetY), nameColor,
+                OffsetBubbleRect(it.NameRect, it.Bubble, offsetY), nameColor,
                 UiUtil.Flags(it.TextRtl, false, false, true, true));
 
             // بلوک پاسخ
@@ -791,7 +799,8 @@ namespace ChatpApp.Shared
                 DrawReplyBlock(g, it, onAccent, server, offsetY);
 
             // متن پیام بدون NoClipping رسم می‌شود تا از محدوده حباب خارج نشود.
-            Rectangle textRect = OffsetRectY(it.TextRect, offsetY);
+            // TextRect نسبت به حباب است؛ مختصات X حباب را هم اضافه می‌کنیم تا متن داخل همان کارت رسم شود.
+            Rectangle textRect = OffsetBubbleRect(it.TextRect, it.Bubble, offsetY);
             TextRenderer.DrawText(g, it.Shown,
                 m.Deleted ? Theme.Font(10, FontStyle.Italic) : Theme.Font(10.5f),
                 textRect, textColor, UiUtil.Flags(it.TextRtl, true, false, false, false));
@@ -802,7 +811,7 @@ namespace ChatpApp.Shared
                 ReactionInfo ri = null;
                 foreach (ReactionInfo r in m.Reactions)
                     if (r.Emoji == ci.Emoji) { ri = r; break; }
-                if (ri != null) DrawChip(g, ci, ri, onAccent, server, offsetY);
+                if (ri != null) DrawChip(g, ci, ri, onAccent, server, it.Bubble, offsetY);
             }
 
             // ساعت، برچسب ویرایش و وضعیت تحویل
@@ -812,7 +821,7 @@ namespace ChatpApp.Shared
         private void DrawReplyBlock(Graphics g, ViewItem it, bool onAccent, bool server, int offsetY)
         {
             ChatMessageInfo m = it.Msg;
-            Rectangle rr = OffsetRectY(it.ReplyRect, offsetY);
+            Rectangle rr = OffsetBubbleRect(it.ReplyRect, it.Bubble, offsetY);
             Color fill = onAccent ? Color.FromArgb(48, 255, 255, 255)
                 : (server ? Color.FromArgb(40, 120, 70, 10)
                 : Color.FromArgb(Theme.IsDark ? 48 : 30, Theme.Accent));
@@ -833,9 +842,9 @@ namespace ChatpApp.Shared
                 UiUtil.Flags(it.TextRtl, false, false, true, true));
         }
 
-        private void DrawChip(Graphics g, ChipInfo ci, ReactionInfo ri, bool onAccent, bool server, int offsetY)
+        private void DrawChip(Graphics g, ChipInfo ci, ReactionInfo ri, bool onAccent, bool server, Rectangle bubble, int offsetY)
         {
-            Rectangle r = OffsetRectY(ci.Rect, offsetY);
+            Rectangle r = OffsetBubbleRect(ci.Rect, bubble, offsetY);
             bool iReacted = ri.Users.Contains(MyName);
             Color fill;
             if (onAccent) fill = Color.FromArgb(iReacted ? 95 : 42, 255, 255, 255);
@@ -877,7 +886,7 @@ namespace ChatpApp.Shared
             int tickW = ticks ? 28 : 0;
             int total = timeW + editedW + tickW;
 
-            Rectangle fr = OffsetRectY(it.FooterRect, offsetY);
+            Rectangle fr = OffsetBubbleRect(it.FooterRect, it.Bubble, offsetY);
             int x = it.TextRtl ? fr.X : fr.Right - total;
             TextFormatFlags f = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine |
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter;
